@@ -5,6 +5,12 @@ All notable changes to **Grima** will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+## [0.2.0] - 2026-09-02
+
+### Changed
+- Add interactive API docs at /docs, OpenAPI 3.0 schema, llms.txt, and documentation pointers in /api/status
+
 ## [0.1.0] - 2026-09-02
 
 ### Added

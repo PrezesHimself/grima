@@ -1,0 +1,85 @@
+# Grima Network Telemetry API (for AI Agents & LLMs)
+
+> Grima is a real-time local network daemon running on a Dell Wyse host in a local network. It continuously scans the local subnet (/24), parses IEEE OUI vendor identifiers, tracks connected devices (Wi-Fi vs Wired), queries router gateway metrics over UPnP IGD, monitors Wi-Fi radio frequencies, and exposes metrics via HTTP and Tailscale.
+
+## Quick Reference
+
+- Base URL (LAN): http://192.168.1.104:3000
+- Base URL (Tailscale IP): http://100.86.96.26:3000
+- Base URL (Tailscale MagicDNS): http://mr-wyse-5070-thin-client:3000
+- Base URL (Localhost): http://localhost:3000
+- OpenAPI 3.0 Spec: http://localhost:3000/docs/openapi.json
+- Interactive Docs: http://localhost:3000/docs
+
+## Available Endpoints
+
+### 1. `GET /api/status`
+Returns full aggregated state:
+- `summary`: High-level counts (`totalDevices`, `connectedClientsCount`, `wifiClientsCount`, `wiredClientsCount`), `primaryWifiSsid`, `routerModel`, `externalIp`, `tailscaleIp`, `gatewayPingMs`, `internetPingMs`.
+- `documentation`: Direct links to `/docs`, `/docs/openapi.json`, and `/llms.txt`.
+- `devices`: Array of all active network nodes (IP, MAC, vendor, friendly name, Wi-Fi/wired medium, ping RTT).
+- `wifi`: Visible Wi-Fi networks in range, channels, frequencies, signal dBm, and security.
+- `router`: Gateway model, external WAN IP, router uptime, and error status.
+- `networkPerformance`: Gateway and Internet latency.
+- `interfaceStats`: Physical NIC throughput (RX/TX MB) and link speed (1000 Mbps).
+- `host`: Host CPU load, RAM usage, and uptime.
+
+### 2. `GET /api/devices`
+Returns active network devices:
+- `count`: Total client devices excluding the router.
+- `wifiCount`: Clients connected via Wi-Fi.
+- `wiredCount`: Clients connected via Ethernet.
+- `devices`: Array of device objects. Each device has:
+  - `ip`: IPv4 address (e.g. `192.168.1.102`)
+  - `mac`: Physical MAC address (e.g. `70:3e:97:7e:e6:e2`)
+  - `name`: Resolved friendly name (e.g. `Pendrive Mi TV`)
+  - `vendor`: IEEE OUI vendor (e.g. `Xiaomi (Iton Tech)`)
+  - `medium`: `"Wi-Fi"`, `"Wired Ethernet (enp1s0)"`, or `"Router / AP"`
+  - `latencyMs`: RTT ping time or null if ICMP is filtered
+  - `state`: `"REACHABLE"`, `"DELAY"`, `"STALE"`, or `"LOCAL"`
+  - `isRouter`: Boolean
+  - `isLocalHost`: Boolean
+
+### 3. `GET /api/wifi`
+Returns radio and spectrum environment:
+- `interface`: Wi-Fi adapter name (`wlp0s12f0`)
+- `localAccessPoints`: List of BSSIDs belonging to the local router
+- `allVisibleNetworks`: List of all SSIDs in range with:
+  - `ssid`: Network SSID
+  - `bssid`: MAC address of the AP
+  - `channel`: Channel number (e.g. 4, 40)
+  - `frequency`: Frequency in MHz (e.g. 2427 MHz, 5200 MHz)
+  - `signalPercent`: Signal strength 0-100%
+  - `signalDbm`: Approximate RSSI in dBm (e.g. -50 dBm)
+  - `security`: Encryption suite (e.g. `WPA2`, `WPA2 WPA3`)
+  - `rate`: Max supported bitrate (e.g. `270 Mbit/s`)
+  - `isLocalAp`: Boolean
+
+### 4. `GET /api/router`
+Returns router gateway telemetry (Mercusys AC12G via UPnP IGD):
+- `model`: Router model description
+- `gatewayIp`: Router IP (`192.168.1.1`)
+- `externalIp`: Public WAN IP address (`176.115.2.218`)
+- `uptimeSeconds`: Time in seconds since router reboot
+- `uptimeFormatted`: Human-readable router uptime (e.g. `12d 12h 30m`)
+- `connectionStatus`: Connection state (e.g. `Connected`)
+- `lastError`: Error code (e.g. `ERROR_NONE`)
+
+### 5. `POST /api/scan`
+Forces an immediate active ARP sweep and Wi-Fi scan, returning updated data.
+
+### 6. `GET /api/version`
+Returns Grima's semantic version and package metadata.
+
+## What AI Agents & LLMs Can Build With Grima
+
+1. **Intruder & New Device Alerts**:
+   Poll `/api/devices` to detect unrecognized MAC addresses or unknown manufacturers connecting to the home network.
+2. **Presence Detection / Home Automation**:
+   Check when specific devices (smartphones, laptops, TVs) become active (`REACHABLE`) or drop to trigger smart home routines.
+3. **Wi-Fi Optimization & Channel Analyzer**:
+   Analyze `/api/wifi` to find crowded Wi-Fi channels in the 2.4 GHz and 5 GHz bands and recommend less congested channels.
+4. **Internet Uptime & WAN Monitor**:
+   Track changes to `externalIp` (dynamic IP changes) and log ISP latency spikes or router reboots via `uptimeSeconds`.
+5. **Bandwidth & Link Health Watchdog**:
+   Monitor gateway vs Internet RTT to isolate whether network slowdowns are on the local LAN/Wi-Fi or upstream ISP.

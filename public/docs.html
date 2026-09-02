@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grima API Documentation & Agent Guide</title>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: rgba(22, 30, 49, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --code-bg: #111827;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 32px 16px; min-height: 100vh; line-height: 1.6; }
+    .container { max-width: 1000px; margin: 0 auto; }
+
+    header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid var(--card-border); }
+    .title h1 { font-size: 1.8rem; font-weight: 700; display: flex; align-items: center; gap: 12px; }
+    .title p { color: var(--text-muted); font-size: 0.95rem; margin-top: 4px; }
+    .nav-links { display: flex; gap: 12px; }
+    .btn { background: var(--card-bg); border: 1px solid var(--card-border); color: var(--text); padding: 8px 14px; border-radius: 8px; text-decoration: none; font-size: 0.85rem; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s; }
+    .btn:hover { background: rgba(59, 130, 246, 0.15); border-color: var(--accent); color: #60a5fa; }
+    .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-hover); }
+
+    /* Callout */
+    .callout { background: rgba(59, 130, 246, 0.08); border-left: 4px solid var(--accent); border-radius: 0 10px 10px 0; padding: 18px 20px; margin-bottom: 32px; }
+    .callout h3 { font-size: 1.1rem; color: #93c5fd; margin-bottom: 6px; }
+    .callout p { color: #d1d5db; font-size: 0.9rem; }
+
+    /* Endpoint Cards */
+    .endpoint-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; margin-bottom: 24px; overflow: hidden; }
+    .endpoint-header { padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+    .endpoint-title { display: flex; align-items: center; gap: 12px; font-family: monospace; font-size: 1rem; font-weight: 600; }
+    .method { padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+    .method-get { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+    .method-post { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+    .endpoint-desc { padding: 16px 20px; color: var(--text-muted); font-size: 0.92rem; }
+
+    pre { background: var(--code-bg); padding: 14px 18px; border-radius: 8px; overflow-x: auto; font-size: 0.85rem; color: #e5e7eb; border: 1px solid rgba(255, 255, 255, 0.04); margin: 0 20px 20px 20px; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+
+    .try-btn { background: rgba(255, 255, 255, 0.05); border: 1px solid var(--card-border); color: var(--text); padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 500; }
+    .try-btn:hover { background: rgba(255, 255, 255, 0.1); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="title">
+        <h1>Grima API Documentation</h1>
+        <p>Real-time Wi-Fi status, connected devices, and network telemetry daemon</p>
+      </div>
+      <div class="nav-links">
+        <a href="/" class="btn">← Dashboard</a>
+        <a href="/docs/openapi.json" class="btn" target="_blank">OpenAPI Spec (JSON)</a>
+        <a href="/llms.txt" class="btn btn-primary" target="_blank">llms.txt for Agents</a>
+      </div>
+    </header>
+
+    <div class="callout">
+      <h3>🤖 Designed for AI Agents & LLMs</h3>
+      <p>
+        Grima exposes network telemetry formatted for seamless consumption by AI agents, automation pipelines, and smart home managers.
+        Agents can read the raw Markdown instructions at <strong><a href="/llms.txt" style="color: #93c5fd;">/llms.txt</a></strong> or parse the standardized <strong><a href="/docs/openapi.json" style="color: #93c5fd;">/docs/openapi.json</a></strong> spec.
+      </p>
+    </div>
+
+    <!-- Endpoint 1: /api/status -->
+    <div class="endpoint-card">
+      <div class="endpoint-header">
+        <div class="endpoint-title">
+          <span class="method method-get">GET</span>
+          <span>/api/status</span>
+        </div>
+        <a href="/api/status" target="_blank" class="try-btn">Open Live Output ↗</a>
+      </div>
+      <div class="endpoint-desc">
+        Returns complete aggregated network telemetry: summary counts, active devices inventory, Wi-Fi spectrum, router gateway state, latencies, and host machine stats.
+      </div>
+      <pre><code>curl -s http://localhost:3000/api/status</code></pre>
+    </div>
+
+    <!-- Endpoint 2: /api/devices -->
+    <div class="endpoint-card">
+      <div class="endpoint-header">
+        <div class="endpoint-title">
+          <span class="method method-get">GET</span>
+          <span>/api/devices</span>
+        </div>
+        <a href="/api/devices" target="_blank" class="try-btn">Open Live Output ↗</a>
+      </div>
+      <div class="endpoint-desc">
+        Returns list of all active network nodes on the local subnet (/24) including IP, MAC address, manufacturer from IEEE OUI database, friendly name (SSDP/UPnP), connection medium (Wi-Fi vs Wired), and ping RTT.
+      </div>
+      <pre><code>curl -s http://localhost:3000/api/devices</code></pre>
+    </div>
+
+    <!-- Endpoint 3: /api/wifi -->
+    <div class="endpoint-card">
+      <div class="endpoint-header">
+        <div class="endpoint-title">
+          <span class="method method-get">GET</span>
+          <span>/api/wifi</span>
+        </div>
+        <a href="/api/wifi" target="_blank" class="try-btn">Open Live Output ↗</a>
+      </div>
+      <div class="endpoint-desc">
+        Returns Wi-Fi radio status and nearby networks scanned via the wireless adapter (SSIDs, BSSIDs, carrier frequencies, channels, signal percent & dBm, and security suites).
+      </div>
+      <pre><code>curl -s http://localhost:3000/api/wifi</code></pre>
+    </div>
+
+    <!-- Endpoint 4: /api/router -->
+    <div class="endpoint-card">
+      <div class="endpoint-header">
+        <div class="endpoint-title">
+          <span class="method method-get">GET</span>
+          <span>/api/router</span>
+        </div>
+        <a href="/api/router" target="_blank" class="try-btn">Open Live Output ↗</a>
+      </div>
+      <div class="endpoint-desc">
+        Returns router and gateway diagnostics queried via UPnP IGD: router model, external public WAN IP, system uptime, and connection status.
+      </div>
+      <pre><code>curl -s http://localhost:3000/api/router</code></pre>
+    </div>
+
+    <!-- Endpoint 5: /api/scan -->
+    <div class="endpoint-card">
+      <div class="endpoint-header">
+        <div class="endpoint-title">
+          <span class="method method-post">POST</span>
+          <span>/api/scan</span>
+        </div>
+      </div>
+      <div class="endpoint-desc">
+        Invalidates cached scan data and triggers an immediate active ARP sweep and Wi-Fi spectrum scan.
+      </div>
+      <pre><code>curl -X POST http://localhost:3000/api/scan</code></pre>
+    </div>
+
+    <!-- Endpoint 6: /api/version -->
+    <div class="endpoint-card">
+      <div class="endpoint-header">
+        <div class="endpoint-title">
+          <span class="method method-get">GET</span>
+          <span>/api/version</span>
+        </div>
+        <a href="/api/version" target="_blank" class="try-btn">Open Live Output ↗</a>
+      </div>
+      <div class="endpoint-desc">
+        Returns daemon name, version, and metadata.
+      </div>
+      <pre><code>curl -s http://localhost:3000/api/version</code></pre>
+    </div>
+  </div>
+</body>
+</html>

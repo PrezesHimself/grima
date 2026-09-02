@@ -1,0 +1,219 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Grima Telemetry API",
+    "description": "Real-time Wi-Fi status, connected devices, and network telemetry API for clients, LLMs, and autonomous agents.",
+    "version": "0.2.0"
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Local / Tailscale Grima Server"
+    }
+  ],
+  "paths": {
+    "/api/status": {
+      "get": {
+        "summary": "Get full network telemetry snapshot",
+        "description": "Returns complete aggregated network telemetry: summary counts, active devices, Wi-Fi spectrum, router gateway status, latencies, and host stats.",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/devices": {
+      "get": {
+        "summary": "Get connected devices inventory",
+        "description": "Returns active devices discovered on the local subnet (/24) including IP, MAC, hardware manufacturer (IEEE OUI), friendly name, medium (Wi-Fi/Ethernet), and ping latency.",
+        "responses": {
+          "200": {
+            "description": "List of active network devices",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevicesResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wifi": {
+      "get": {
+        "summary": "Get Wi-Fi spectrum and visible networks",
+        "description": "Returns dual-band Wi-Fi radio scan data: SSIDs, BSSIDs, signal percent and dBm, carrier frequency, channel, security mode, and bitrates.",
+        "responses": {
+          "200": {
+            "description": "Wi-Fi radio status and scan list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WifiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/router": {
+      "get": {
+        "summary": "Get router & WAN gateway status",
+        "description": "Queries the local router gateway via UPnP IGD: model name, external public WAN IP, system uptime, and connection error status.",
+        "responses": {
+          "200": {
+            "description": "Router gateway telemetry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouterResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/version": {
+      "get": {
+        "summary": "Get Grima version and metadata",
+        "responses": {
+          "200": {
+            "description": "Daemon version info"
+          }
+        }
+      }
+    },
+    "/api/scan": {
+      "post": {
+        "summary": "Trigger immediate fresh network scan",
+        "description": "Invalidates cache and initiates immediate active subnet ARP sweep and Wi-Fi spectrum scan.",
+        "responses": {
+          "200": {
+            "description": "Scan complete notification with fresh telemetry data"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "StatusResponse": {
+        "type": "object",
+        "properties": {
+          "app": { "type": "string", "example": "grima" },
+          "version": { "type": "string", "example": "0.2.0" },
+          "documentation": {
+            "type": "object",
+            "properties": {
+              "docsUrl": { "type": "string", "example": "/docs" },
+              "openapiUrl": { "type": "string", "example": "/docs/openapi.json" },
+              "llmsTxtUrl": { "type": "string", "example": "/llms.txt" },
+              "description": { "type": "string" }
+            }
+          },
+          "timestamp": { "type": "string", "format": "date-time" },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "totalDevices": { "type": "integer", "description": "Total active nodes including router and host" },
+              "connectedClientsCount": { "type": "integer", "description": "Total client devices excluding router" },
+              "wifiClientsCount": { "type": "integer", "description": "Clients connected over Wi-Fi" },
+              "wiredClientsCount": { "type": "integer", "description": "Clients connected over Ethernet" },
+              "primaryWifiSsid": { "type": "string", "example": "Sebastiana_20" },
+              "routerModel": { "type": "string", "example": "MERCUSYS AC12G" },
+              "externalIp": { "type": "string", "example": "176.115.2.218" },
+              "tailscaleIp": { "type": "string", "example": "100.86.96.26" },
+              "gatewayPingMs": { "type": "number", "example": 0.55 },
+              "internetPingMs": { "type": "number", "example": 5.8 }
+            }
+          },
+          "devices": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Device" }
+          },
+          "wifi": { "$ref": "#/components/schemas/WifiResponse" },
+          "router": { "$ref": "#/components/schemas/RouterResponse" }
+        }
+      },
+      "Device": {
+        "type": "object",
+        "properties": {
+          "ip": { "type": "string", "example": "192.168.1.102" },
+          "mac": { "type": "string", "example": "70:3e:97:7e:e6:e2" },
+          "name": { "type": "string", "example": "Pendrive Mi TV (Xiaomi Mi TV Stick)" },
+          "vendor": { "type": "string", "example": "Xiaomi (Iton Tech)" },
+          "type": { "type": "string", "example": "Smart TV / Streaming" },
+          "medium": { "type": "string", "enum": ["Wi-Fi", "Wired Ethernet (enp1s0)", "Router / AP"] },
+          "latencyMs": { "type": "number", "nullable": true, "example": 1.2 },
+          "state": { "type": "string", "example": "REACHABLE" },
+          "isRouter": { "type": "boolean" },
+          "isLocalHost": { "type": "boolean" }
+        }
+      },
+      "DevicesResponse": {
+        "type": "object",
+        "properties": {
+          "count": { "type": "integer" },
+          "wifiCount": { "type": "integer" },
+          "wiredCount": { "type": "integer" },
+          "devices": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Device" }
+          }
+        }
+      },
+      "WifiResponse": {
+        "type": "object",
+        "properties": {
+          "interface": { "type": "string", "example": "wlp0s12f0" },
+          "state": { "type": "string", "example": "Hardware Available (Dual-band)" },
+          "localAccessPoints": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/WifiNetwork" }
+          },
+          "allVisibleNetworks": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/WifiNetwork" }
+          }
+        }
+      },
+      "WifiNetwork": {
+        "type": "object",
+        "properties": {
+          "ssid": { "type": "string", "example": "Sebastiana_20" },
+          "bssid": { "type": "string", "example": "08:8A:F1:5E:5D:BC" },
+          "channel": { "type": "string", "example": "4" },
+          "frequency": { "type": "string", "example": "2427 MHz" },
+          "signalPercent": { "type": "integer", "example": 100 },
+          "signalDbm": { "type": "integer", "example": -50 },
+          "security": { "type": "string", "example": "WPA2" },
+          "rate": { "type": "string", "example": "270 Mbit/s" },
+          "isLocalAp": { "type": "boolean" }
+        }
+      },
+      "RouterResponse": {
+        "type": "object",
+        "properties": {
+          "model": { "type": "string", "example": "MERCUSYS AC12G AC1300 Wireless Dual Band Gigabit Router" },
+          "gatewayIp": { "type": "string", "example": "192.168.1.1" },
+          "externalIp": { "type": "string", "example": "176.115.2.218" },
+          "uptimeSeconds": { "type": "integer", "example": 1082000 },
+          "uptimeFormatted": { "type": "string", "example": "12d 12h 33m" },
+          "connectionStatus": { "type": "string", "example": "Connected" },
+          "lastError": { "type": "string", "example": "ERROR_NONE" }
+        }
+      }
+    }
+  }
+}

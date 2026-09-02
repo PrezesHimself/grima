@@ -13,7 +13,7 @@ scanner.startPeriodicScan(15000);
 function sendJson(res, statusCode, data, isHead = false) {
   const json = JSON.stringify(data, null, 2);
   res.writeHead(statusCode, {
-    'Content-Type': 'application/json',
+    'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, HEAD, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
@@ -25,6 +25,21 @@ function sendJson(res, statusCode, data, isHead = false) {
   } else {
     res.end(json);
   }
+}
+
+function serveFile(res, filePath, contentType, isHead = false) {
+  if (!fs.existsSync(filePath)) {
+    return sendJson(res, 404, { error: 'File Not Found' }, isHead);
+  }
+  const stat = fs.statSync(filePath);
+  res.writeHead(200, {
+    'Content-Type': contentType,
+    'Content-Length': stat.size,
+    'Access-Control-Allow-Origin': '*',
+    'Cache-Control': 'no-cache'
+  });
+  if (isHead) return res.end();
+  fs.createReadStream(filePath).pipe(res);
 }
 
 const server = http.createServer(async (req, res) => {
@@ -43,10 +58,37 @@ const server = http.createServer(async (req, res) => {
     return res.end();
   }
 
+  // --- Documentation Endpoints for LLMs and Clients ---
+  if ((pathname === '/docs' || pathname === '/api/docs') && (isGet || isHead)) {
+    return serveFile(res, path.join(__dirname, 'public', 'docs.html'), 'text/html; charset=utf-8', isHead);
+  }
+
+  if ((pathname === '/docs/openapi.json' || pathname === '/api/docs/openapi.json') && (isGet || isHead)) {
+    return serveFile(res, path.join(__dirname, 'public', 'openapi.json'), 'application/json; charset=utf-8', isHead);
+  }
+
+  if (pathname === '/llms.txt' && (isGet || isHead)) {
+    return serveFile(res, path.join(__dirname, 'public', 'llms.txt'), 'text/plain; charset=utf-8', isHead);
+  }
+
   // --- API Routes ---
   if (pathname === '/api/status' && (isGet || isHead)) {
     const data = scanner.cachedData || await scanner.scanAll();
-    return sendJson(res, 200, { app: 'grima', version: pkg.version, ...data }, isHead);
+    const tsInfo = scanner.getTailscaleInfo();
+    const hostHeader = req.headers.host || `localhost:${PORT}`;
+    const baseUrl = `http://${hostHeader}`;
+
+    return sendJson(res, 200, {
+      app: 'grima',
+      version: pkg.version,
+      documentation: {
+        docsUrl: `${baseUrl}/docs`,
+        openapiUrl: `${baseUrl}/docs/openapi.json`,
+        llmsTxtUrl: `${baseUrl}/llms.txt`,
+        description: 'Grima API documentation, OpenAPI 3.0 schema, and agent implementation guide for LLMs and clients.'
+      },
+      ...data
+    }, isHead);
   }
 
   if (pathname === '/api/devices' && (isGet || isHead)) {
@@ -70,7 +112,12 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (pathname === '/api/version' && (isGet || isHead)) {
-    return sendJson(res, 200, { name: pkg.name, version: pkg.version, description: pkg.description }, isHead);
+    return sendJson(res, 200, {
+      name: pkg.name,
+      version: pkg.version,
+      description: pkg.description,
+      docs: '/docs'
+    }, isHead);
   }
 
   if (pathname === '/api/scan' && req.method === 'POST') {
@@ -81,22 +128,24 @@ const server = http.createServer(async (req, res) => {
 
   // --- Static UI Delivery ---
   if ((pathname === '/' || pathname === '/index.html') && (isGet || isHead)) {
-    const indexPath = path.join(__dirname, 'public', 'index.html');
-    if (fs.existsSync(indexPath)) {
-      const stat = fs.statSync(indexPath);
-      res.writeHead(200, {
-        'Content-Type': 'text/html; charset=utf-8',
-        'Content-Length': stat.size
-      });
-      if (isHead) return res.end();
-      return fs.createReadStream(indexPath).pipe(res);
-    }
+    return serveFile(res, path.join(__dirname, 'public', 'index.html'), 'text/html; charset=utf-8', isHead);
   }
 
   // 404
   sendJson(res, 404, {
     error: 'Not Found',
-    availableEndpoints: ['/', '/api/status', '/api/devices', '/api/wifi', '/api/router', '/api/version', '/api/scan']
+    availableEndpoints: [
+      '/',
+      '/docs',
+      '/docs/openapi.json',
+      '/llms.txt',
+      '/api/status',
+      '/api/devices',
+      '/api/wifi',
+      '/api/router',
+      '/api/version',
+      '/api/scan'
+    ]
   }, isHead);
 });
 
@@ -104,14 +153,15 @@ server.listen(PORT, HOST, () => {
   const tsInfo = scanner.getTailscaleInfo();
   console.log(`========================================================`);
   console.log(`  Grima v${pkg.version} is running!`);
-  console.log(`  Localhost:      http://localhost:${PORT}`);
-  console.log(`  LAN (Ethernet): http://192.168.1.104:${PORT}`);
-  console.log(`  Tailscale IP:   http://${tsInfo.ip}:${PORT}`);
-  console.log(`  Tailscale DNS:  http://${tsInfo.hostname}:${PORT}`);
+  console.log(`  Dashboard:     http://localhost:${PORT}`);
+  console.log(`  API Docs:      http://localhost:${PORT}/docs`);
+  console.log(`  OpenAPI Spec:  http://localhost:${PORT}/docs/openapi.json`);
+  console.log(`  LLMs Guide:    http://localhost:${PORT}/llms.txt`);
+  console.log(`  Tailscale:     http://${tsInfo.ip}:${PORT}`);
+  console.log(`  Tailscale DNS: http://${tsInfo.hostname}:${PORT}`);
   console.log(`========================================================`);
 });
 
-// Graceful shutdown with immediate process termination
 function shutdown() {
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 1000);

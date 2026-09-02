@@ -70,27 +70,38 @@
     .actions {
       display: flex;
       align-items: center;
-      gap: 12px;
+      flex-wrap: wrap;
+      gap: 10px;
     }
 
     .btn {
       background: var(--accent);
       color: white;
       border: none;
-      padding: 8px 16px;
+      padding: 8px 14px;
       border-radius: 8px;
       cursor: pointer;
-      font-size: 0.9rem;
+      font-size: 0.88rem;
       font-weight: 500;
       display: inline-flex;
       align-items: center;
       gap: 6px;
+      text-decoration: none;
       transition: background 0.2s, transform 0.1s;
     }
 
     .btn:hover { background: var(--accent-hover); }
     .btn:active { transform: scale(0.98); }
     .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--card-border);
+      color: var(--text);
+    }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.12);
+    }
 
     .pulse-dot {
       display: inline-block;
@@ -250,16 +261,17 @@
       display: flex;
       justify-content: space-between;
       color: var(--text-muted);
-      font-size: 0.8rem;
-      padding-top: 12px;
+      font-size: 0.85rem;
+      padding-top: 16px;
       flex-wrap: wrap;
-      gap: 10px;
+      gap: 12px;
+      border-top: 1px solid var(--card-border);
     }
 
     .api-links a {
       color: var(--badge-text);
       text-decoration: none;
-      margin-left: 12px;
+      margin-left: 14px;
     }
 
     .api-links a:hover {
@@ -276,7 +288,7 @@
       </div>
       <div class="actions">
         <span class="badge badge-ts" id="ts-badge">Tailscale: 100.86.96.26</span>
-        <span id="refresh-countdown" style="color: var(--text-muted); font-size: 0.85rem;">Refreshing in 15s</span>
+        <a href="/docs" class="btn btn-secondary">📖 API Docs</a>
         <button class="btn" id="refresh-btn" onclick="triggerScan()">↻ Refresh Now</button>
       </div>
     </header>
@@ -400,12 +412,12 @@
     <div class="footer">
       <div>Last updated: <span id="last-updated">Never</span></div>
       <div class="api-links">
-        API Endpoints:
+        <a href="/docs"><strong>📖 API Docs</strong></a>
+        <a href="/docs/openapi.json" target="_blank">OpenAPI Spec</a>
+        <a href="/llms.txt" target="_blank">llms.txt for Agents</a>
         <a href="/api/status" target="_blank">/api/status</a>
         <a href="/api/devices" target="_blank">/api/devices</a>
         <a href="/api/wifi" target="_blank">/api/wifi</a>
-        <a href="/api/router" target="_blank">/api/router</a>
-        <a href="/api/version" target="_blank">/api/version</a>
       </div>
     </div>
   </div>
@@ -423,7 +435,6 @@
           fetchStatus();
           countdownSec = 15;
         }
-        document.getElementById('refresh-countdown').textContent = `Refreshing in ${countdownSec}s`;
       }, 1000);
     }
 
