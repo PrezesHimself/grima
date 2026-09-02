@@ -1,0 +1,23 @@
+{
+  "name": "grima",
+  "version": "0.1.0",
+  "description": "Grima - Real-time Wi-Fi status, connected devices, and network telemetry daemon",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "bump": "node bump.js patch",
+    "bump:patch": "node bump.js patch",
+    "bump:minor": "node bump.js minor",
+    "bump:major": "node bump.js major"
+  },
+  "keywords": [
+    "grima",
+    "wifi",
+    "network",
+    "monitor",
+    "telemetry",
+    "tailscale"
+  ],
+  "author": "",
+  "license": "MIT"
+}

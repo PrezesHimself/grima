@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grima - Wi-Fi & Network Telemetry</title>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: rgba(22, 30, 49, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --badge-bg: rgba(59, 130, 246, 0.15);
+      --badge-text: #60a5fa;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      padding: 24px 16px;
+      min-height: 100vh;
+      background-image: radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.05) 0%, transparent 40%),
+                        radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.04) 0%, transparent 40%);
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 24px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .title-group h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      letter-spacing: -0.02em;
+    }
+
+    .title-group p {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-top: 4px;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    .btn:hover { background: var(--accent-hover); }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .pulse-dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 10px var(--success);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.2); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+
+    /* Cards Grid */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .card-title {
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .card-val {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    .card-sub {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: var(--badge-bg);
+      color: var(--badge-text);
+    }
+    .badge-version { background: rgba(255, 255, 255, 0.1); color: #e5e7eb; border: 1px solid rgba(255, 255, 255, 0.15); }
+    .badge-success { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+    .badge-warning { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+    .badge-info { background: rgba(147, 51, 234, 0.15); color: #c084fc; }
+    .badge-ts { background: rgba(37, 99, 235, 0.2); color: #93c5fd; border: 1px solid rgba(147, 197, 253, 0.2); }
+
+    /* Tables */
+    .section {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    .table-responsive {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.9rem;
+    }
+
+    th {
+      color: var(--text-muted);
+      font-weight: 600;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--card-border);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+    }
+
+    td {
+      padding: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .meter-container {
+      width: 100px;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+      overflow: hidden;
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+
+    .meter-fill {
+      height: 100%;
+      border-radius: 3px;
+      background: var(--accent);
+    }
+
+    .meter-fill.strong { background: var(--success); }
+    .meter-fill.medium { background: var(--warning); }
+    .meter-fill.weak { background: var(--danger); }
+
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      padding-top: 12px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .api-links a {
+      color: var(--badge-text);
+      text-decoration: none;
+      margin-left: 12px;
+    }
+
+    .api-links a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="title-group">
+        <h1><span class="pulse-dot"></span> Grima <span class="badge badge-version" id="version-badge">v0.1.0</span></h1>
+        <p id="sub-header">Wi-Fi & Network Telemetry Daemon</p>
+      </div>
+      <div class="actions">
+        <span class="badge badge-ts" id="ts-badge">Tailscale: 100.86.96.26</span>
+        <span id="refresh-countdown" style="color: var(--text-muted); font-size: 0.85rem;">Refreshing in 15s</span>
+        <button class="btn" id="refresh-btn" onclick="triggerScan()">↻ Refresh Now</button>
+      </div>
+    </header>
+
+    <!-- Top Metric Cards -->
+    <div class="grid">
+      <!-- Card 1: Connected Devices -->
+      <div class="card">
+        <div class="card-title">
+          <span>Connected Devices</span>
+          <span class="badge badge-success" id="clients-badge">Live</span>
+        </div>
+        <div class="card-val" id="total-clients-val">--</div>
+        <div class="card-sub" id="clients-sub">-- Wi-Fi · -- Wired</div>
+      </div>
+
+      <!-- Card 2: Primary Wi-Fi -->
+      <div class="card">
+        <div class="card-title">
+          <span>Primary Wi-Fi Network</span>
+          <span class="badge" id="wifi-band-badge">Dual Band</span>
+        </div>
+        <div class="card-val" id="primary-ssid-val" style="font-size: 1.4rem;">--</div>
+        <div class="card-sub" id="wifi-details-sub">--</div>
+      </div>
+
+      <!-- Card 3: Router & Gateway -->
+      <div class="card">
+        <div class="card-title">
+          <span>Router & Gateway</span>
+          <span class="badge badge-info" id="router-uptime-badge">--</span>
+        </div>
+        <div class="card-val" id="gateway-ip-val" style="font-size: 1.4rem;">192.168.1.1</div>
+        <div class="card-sub" id="router-sub">WAN: --</div>
+      </div>
+
+      <!-- Card 4: Network Latency -->
+      <div class="card">
+        <div class="card-title">
+          <span>Latency & Speed</span>
+          <span class="badge badge-success" id="speed-badge">1 Gbps</span>
+        </div>
+        <div class="card-val" id="ping-val">-- <span style="font-size: 1rem; font-weight: normal; color: var(--text-muted);">ms</span></div>
+        <div class="card-sub" id="ping-sub">Gateway: -- ms · Internet: -- ms</div>
+      </div>
+    </div>
+
+    <!-- Section: Connected Devices -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Connected Devices on Subnet (192.168.1.0/24)</div>
+        <span class="badge badge-success" id="device-count-badge">0 Devices</span>
+      </div>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Device Name / Identification</th>
+              <th>IP Address</th>
+              <th>MAC Address</th>
+              <th>Vendor / Manufacturer</th>
+              <th>Medium</th>
+              <th>Latency</th>
+            </tr>
+          </thead>
+          <tbody id="devices-tbody">
+            <tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">Loading active devices...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Section: Visible Wi-Fi Networks -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Wi-Fi Spectrum & Networks in Range</div>
+        <span class="badge" id="wifi-count-badge">0 Networks</span>
+      </div>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>SSID</th>
+              <th>Signal</th>
+              <th>Channel</th>
+              <th>Frequency</th>
+              <th>Security</th>
+              <th>Max Bitrate</th>
+              <th>BSSID</th>
+            </tr>
+          </thead>
+          <tbody id="wifi-tbody">
+            <tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">Scanning Wi-Fi spectrum...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Section: Host Machine & Interface Stats -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Host Machine & Tailscale Telemetry</div>
+      </div>
+      <div class="grid" style="margin-bottom: 0;">
+        <div style="font-size: 0.9rem; line-height: 1.8;">
+          <div><strong style="color: var(--text-muted);">Host Name:</strong> <span id="host-name">--</span></div>
+          <div><strong style="color: var(--text-muted);">Tailscale IP:</strong> <code id="ts-ip" style="color: #93c5fd;">100.86.96.26</code></div>
+          <div><strong style="color: var(--text-muted);">Tailscale Host:</strong> <code id="ts-host" style="color: #93c5fd;">mr-wyse-5070-thin-client</code></div>
+          <div><strong style="color: var(--text-muted);">System Uptime:</strong> <span id="host-uptime">--</span></div>
+        </div>
+        <div style="font-size: 0.9rem; line-height: 1.8;">
+          <div><strong style="color: var(--text-muted);">CPU Load (1m / 5m):</strong> <span id="host-cpu">--</span></div>
+          <div><strong style="color: var(--text-muted);">RAM Usage:</strong> <span id="host-ram">--</span></div>
+          <div><strong style="color: var(--text-muted);">Ethernet Traffic:</strong> <span id="host-traffic">--</span></div>
+          <div><strong style="color: var(--text-muted);">Physical NIC:</strong> <span id="host-nic">enp1s0 (1000 Mbps)</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div>Last updated: <span id="last-updated">Never</span></div>
+      <div class="api-links">
+        API Endpoints:
+        <a href="/api/status" target="_blank">/api/status</a>
+        <a href="/api/devices" target="_blank">/api/devices</a>
+        <a href="/api/wifi" target="_blank">/api/wifi</a>
+        <a href="/api/router" target="_blank">/api/router</a>
+        <a href="/api/version" target="_blank">/api/version</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let countdownSec = 15;
+    let countdownInterval;
+
+    function startTimer() {
+      clearInterval(countdownInterval);
+      countdownSec = 15;
+      countdownInterval = setInterval(() => {
+        countdownSec--;
+        if (countdownSec <= 0) {
+          fetchStatus();
+          countdownSec = 15;
+        }
+        document.getElementById('refresh-countdown').textContent = `Refreshing in ${countdownSec}s`;
+      }, 1000);
+    }
+
+    async function triggerScan() {
+      const btn = document.getElementById('refresh-btn');
+      btn.disabled = true;
+      btn.textContent = 'Scanning...';
+      try {
+        await fetch('/api/scan', { method: 'POST' });
+        await fetchStatus();
+      } catch (e) {
+        console.error(e);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '↻ Refresh Now';
+        startTimer();
+      }
+    }
+
+    async function fetchStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        renderDashboard(data);
+      } catch (e) {
+        console.error('Failed to fetch status:', e);
+      }
+    }
+
+    function renderDashboard(data) {
+      if (!data) return;
+
+      const summary = data.summary || {};
+      const router = data.router || {};
+      const wifi = data.wifi || {};
+      const devices = data.devices || [];
+      const host = data.host || {};
+      const iface = data.interfaceStats || {};
+      const ts = data.tailscale || {};
+
+      if (data.version) {
+        document.getElementById('version-badge').textContent = `v${data.version}`;
+      }
+
+      // Header
+      document.getElementById('last-updated').textContent = new Date(data.timestamp).toLocaleTimeString();
+      document.getElementById('sub-header').textContent = `${summary.routerModel || 'Router'} · Subnet 192.168.1.0/24`;
+      if (ts.ip) {
+        document.getElementById('ts-badge').textContent = `Tailscale: ${ts.ip}`;
+        document.getElementById('ts-ip').textContent = ts.ip;
+        document.getElementById('ts-host').textContent = ts.hostname || 'mr-wyse-5070-thin-client';
+      }
+
+      // Cards
+      document.getElementById('total-clients-val').textContent = summary.connectedClientsCount ?? devices.length;
+      document.getElementById('clients-sub').textContent = `${summary.wifiClientsCount || 0} Wi-Fi · ${summary.wiredClientsCount || 0} Wired`;
+
+      document.getElementById('primary-ssid-val').textContent = summary.primaryWifiSsid || 'Sebastiana_20';
+      const localAp = wifi.localAccessPoints?.[0];
+      if (localAp) {
+        document.getElementById('wifi-details-sub').textContent = `Signal: ${localAp.signalPercent}% (${localAp.signalDbm} dBm) · Ch ${localAp.channel}`;
+      } else {
+        document.getElementById('wifi-details-sub').textContent = 'Dual Band (2.4 & 5 GHz)';
+      }
+
+      document.getElementById('gateway-ip-val').textContent = router.gatewayIp || '192.168.1.1';
+      document.getElementById('router-sub').textContent = `WAN: ${router.externalIp || 'Unknown'}`;
+      document.getElementById('router-uptime-badge').textContent = `Uptime: ${router.uptimeFormatted || 'N/A'}`;
+
+      const inetLat = summary.internetPingMs !== null ? summary.internetPingMs.toFixed(1) : '--';
+      const gwLat = summary.gatewayPingMs !== null ? summary.gatewayPingMs.toFixed(2) : '--';
+      document.getElementById('ping-val').innerHTML = `${inetLat} <span style="font-size: 1rem; font-weight: normal; color: var(--text-muted);">ms</span>`;
+      document.getElementById('ping-sub').textContent = `Gateway: ${gwLat} ms · Cloudflare: ${inetLat} ms`;
+      if (iface.speedMbps) {
+        document.getElementById('speed-badge').textContent = `${iface.speedMbps} Mbps Link`;
+      }
+
+      // Devices Table
+      document.getElementById('device-count-badge').textContent = `${devices.length} Nodes`;
+      const devTbody = document.getElementById('devices-tbody');
+      devTbody.innerHTML = devices.map(d => {
+        const isOnline = d.state !== 'FAILED';
+        const statusBadge = isOnline ? '<span class="pulse-dot"></span>' : '<span style="color: var(--danger);">●</span>';
+        const mediumBadge = d.medium === 'Wi-Fi'
+          ? '<span class="badge badge-info">Wi-Fi</span>'
+          : (d.isRouter ? '<span class="badge">Gateway</span>' : '<span class="badge badge-success">Ethernet</span>');
+
+        const latText = d.latencyMs !== null ? `${d.latencyMs.toFixed(2)} ms` : '<span style="color: var(--text-muted);">ICMP Blocked</span>';
+
+        return `
+          <tr>
+            <td>${statusBadge}</td>
+            <td><strong>${escapeHtml(d.name)}</strong><br><small style="color: var(--text-muted);">${escapeHtml(d.type || '')}</small></td>
+            <td><code>${escapeHtml(d.ip)}</code></td>
+            <td><code style="color: var(--text-muted);">${escapeHtml(d.mac)}</code></td>
+            <td>${escapeHtml(d.vendor)}</td>
+            <td>${mediumBadge}</td>
+            <td>${latText}</td>
+          </tr>
+        `;
+      }).join('');
+
+      // Wi-Fi Table
+      const networks = wifi.allVisibleNetworks || [];
+      document.getElementById('wifi-count-badge').textContent = `${networks.length} Networks`;
+      const wifiTbody = document.getElementById('wifi-tbody');
+      wifiTbody.innerHTML = networks.map(n => {
+        let meterClass = 'strong';
+        if (n.signalPercent < 40) meterClass = 'weak';
+        else if (n.signalPercent < 70) meterClass = 'medium';
+
+        const ssidLabel = n.isLocalAp
+          ? `<strong>${escapeHtml(n.ssid)}</strong> <span class="badge badge-success" style="margin-left: 6px;">Your AP</span>`
+          : escapeHtml(n.ssid);
+
+        return `
+          <tr>
+            <td>${ssidLabel}</td>
+            <td>
+              <div class="meter-container"><div class="meter-fill ${meterClass}" style="width: ${n.signalPercent}%;"></div></div>
+              <span>${n.signalPercent}% (${n.signalDbm} dBm)</span>
+            </td>
+            <td>Ch ${escapeHtml(n.channel)}</td>
+            <td>${escapeHtml(n.frequency)}</td>
+            <td><span class="badge">${escapeHtml(n.security)}</span></td>
+            <td>${escapeHtml(n.rate)}</td>
+            <td><code style="color: var(--text-muted); font-size: 0.8rem;">${escapeHtml(n.bssid)}</code></td>
+          </tr>
+        `;
+      }).join('');
+
+      // Host Stats
+      document.getElementById('host-name').textContent = host.hostname || '--';
+      document.getElementById('host-uptime').textContent = host.uptimeFormatted || '--';
+      document.getElementById('host-cpu').textContent = `${host.loadAvg1m || '--'} / ${host.loadAvg5m || '--'} (${host.cpuCount || 4} cores)`;
+      document.getElementById('host-ram').textContent = `${host.ramUsedMb || 0} MB / ${host.ramTotalMb || 0} MB (${host.ramUsagePercent || 0}%)`;
+      document.getElementById('host-traffic').textContent = `RX: ${iface.rxMb || 0} MB · TX: ${iface.txMb || 0} MB`;
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    fetchStatus();
+    startTimer();
+  </script>
+</body>
+</html>

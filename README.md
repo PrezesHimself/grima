@@ -1,0 +1,75 @@
+# Grima 📡
+
+> Lightweight Wi-Fi & Network Telemetry Daemon with Tailscale integration and real-time dashboard.
+
+Grima monitors your local network, tracks connected Wi-Fi and wired clients, queries router gateway metrics via UPnP IGD, monitors signal levels and spectrum across nearby networks, and exposes everything via a REST API and real-time web dashboard.
+
+---
+
+## Features
+
+- **Subnet ARP & UDP Device Discovery**: Automatically catalogs active devices on the local `/24` subnet.
+- **Hardware Vendor Classification**: Identifies device manufacturers using the IEEE OUI database (Xiaomi, Blaupunkt, Intel, Dell Wyse, etc.).
+- **UPnP / SSDP Friendly Name Resolution**: Resolves device friendly names (e.g. "Pendrive Mi TV", "BlaupunktDMR").
+- **Wi-Fi Spectrum & Signal Monitoring**: Dual-band scanning (2.4 GHz & 5 GHz) showing signal %, dBm, channels, bitrates, and security.
+- **Router Gateway Telemetry**: Queries Mercusys / TP-Link router for WAN IP, router uptime, and connection state.
+- **Tailscale Integration**: Bound to `0.0.0.0`, accessible securely across your Tailnet from any authorized device.
+- **Web Dashboard**: Responsive dark-mode dashboard with live status cards and real-time auto-refresh.
+- **Systemd Autostart**: Runs as a persistent user service (`grima.service`) with user lingering enabled.
+
+---
+
+## Accessing Grima
+
+- **Localhost**: [http://localhost:3000](http://localhost:3000)
+- **Local LAN**: `http://192.168.1.104:3000`
+- **Tailscale IP**: [http://100.86.96.26:3000](http://100.86.96.26:3000)
+- **Tailscale MagicDNS**: [http://mr-wyse-5070-thin-client:3000](http://mr-wyse-5070-thin-client:3000)
+
+---
+
+## API Endpoints
+
+| Endpoint | Method | Description |
+| :--- | :--- | :--- |
+| `/api/status` | `GET` | Complete network state, telemetry, and device summary |
+| `/api/devices` | `GET` | Connected devices breakdown (count, IP, MAC, vendor, medium, latency) |
+| `/api/wifi` | `GET` | Wi-Fi spectrum and nearby networks |
+| `/api/router` | `GET` | Router WAN IP, uptime, model, and gateway status |
+| `/api/version` | `GET` | Current Grima release version and metadata |
+| `/api/scan` | `POST` | Trigger an immediate manual re-scan |
+
+---
+
+## Service Management
+
+```bash
+# Check service status
+systemctl --user status grima.service
+
+# Restart daemon
+systemctl --user restart grima.service
+
+# View live log stream
+journalctl --user -u grima.service -f
+```
+
+---
+
+## Version Bumping & Releases
+
+Grima includes an automated bump workflow that updates `package.json`, writes to `CHANGELOG.md`, creates a Git commit and tag, and restarts the daemon:
+
+```bash
+# Patch bump (e.g., 0.1.0 -> 0.1.1)
+npm run bump "Describe fix or change"
+
+# Minor bump (e.g., 0.1.0 -> 0.2.0)
+npm run bump:minor "New features added"
+
+# Major bump (e.g., 0.1.0 -> 1.0.0)
+npm run bump:major "Breaking change or major milestone"
+
+# Custom version
+node bump.js 1.0.0 "First official stable release"
+```
