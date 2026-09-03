@@ -31,12 +31,10 @@
     .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
     .btn-primary:hover { background: var(--accent-hover); }
 
-    /* Callout */
     .callout { background: rgba(59, 130, 246, 0.08); border-left: 4px solid var(--accent); border-radius: 0 10px 10px 0; padding: 18px 20px; margin-bottom: 32px; }
     .callout h3 { font-size: 1.1rem; color: #93c5fd; margin-bottom: 6px; }
     .callout p { color: #d1d5db; font-size: 0.9rem; }
 
-    /* Endpoint Cards */
     .endpoint-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; margin-bottom: 24px; overflow: hidden; }
     .endpoint-header { padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
     .endpoint-title { display: flex; align-items: center; gap: 12px; font-family: monospace; font-size: 1rem; font-weight: 600; }
@@ -48,7 +46,7 @@
     pre { background: var(--code-bg); padding: 14px 18px; border-radius: 8px; overflow-x: auto; font-size: 0.85rem; color: #e5e7eb; border: 1px solid rgba(255, 255, 255, 0.04); margin: 0 20px 20px 20px; }
     code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
 
-    .try-btn { background: rgba(255, 255, 255, 0.05); border: 1px solid var(--card-border); color: var(--text); padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 500; }
+    .try-btn { background: rgba(255, 255, 255, 0.05); border: 1px solid var(--card-border); color: var(--text); padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 500; text-decoration: none; }
     .try-btn:hover { background: rgba(255, 255, 255, 0.1); }
   </style>
 </head>
@@ -57,7 +55,7 @@
     <header>
       <div class="title">
         <h1>Grima API Documentation</h1>
-        <p>Real-time Wi-Fi status, connected devices, and network telemetry daemon</p>
+        <p>Real-time Wi-Fi status, connected devices, on-demand speed test, and network telemetry daemon</p>
       </div>
       <div class="nav-links">
         <a href="/" class="btn">← Dashboard</a>
@@ -74,7 +72,28 @@
       </p>
     </div>
 
-    <!-- Endpoint 1: /api/status -->
+    <!-- Endpoint: /api/speedtest -->
+    <div class="endpoint-card" style="border-color: rgba(59, 130, 246, 0.3);">
+      <div class="endpoint-header">
+        <div class="endpoint-title">
+          <span class="method method-post">POST</span>
+          <span class="method method-get">GET</span>
+          <span>/api/speedtest</span>
+          <span style="font-size: 0.75rem; background: rgba(59, 130, 246, 0.2); color: #93c5fd; padding: 2px 8px; border-radius: 4px;">New in v0.3.0</span>
+        </div>
+        <a href="/api/speedtest" target="_blank" class="try-btn">Open Live Output ↗</a>
+      </div>
+      <div class="endpoint-desc">
+        Performs an on-demand network speed test against the nearest Cloudflare Edge. Measures download throughput (Mbps), upload throughput (Mbps), latency (ping), and jitter in ~1.5s without external dependencies.
+      </div>
+      <pre><code># Run on-demand test:
+curl -X POST http://localhost:3000/api/speedtest
+
+# Retrieve last cached result:
+curl -s http://localhost:3000/api/speedtest</code></pre>
+    </div>
+
+    <!-- Endpoint: /api/status -->
     <div class="endpoint-card">
       <div class="endpoint-header">
         <div class="endpoint-title">
@@ -84,12 +103,12 @@
         <a href="/api/status" target="_blank" class="try-btn">Open Live Output ↗</a>
       </div>
       <div class="endpoint-desc">
-        Returns complete aggregated network telemetry: summary counts, active devices inventory, Wi-Fi spectrum, router gateway state, latencies, and host machine stats.
+        Returns complete aggregated network telemetry: summary counts, active devices inventory, Wi-Fi spectrum, router gateway state, latest speed test, latencies, and host machine stats.
       </div>
       <pre><code>curl -s http://localhost:3000/api/status</code></pre>
     </div>
 
-    <!-- Endpoint 2: /api/devices -->
+    <!-- Endpoint: /api/devices -->
     <div class="endpoint-card">
       <div class="endpoint-header">
         <div class="endpoint-title">
@@ -104,7 +123,7 @@
       <pre><code>curl -s http://localhost:3000/api/devices</code></pre>
     </div>
 
-    <!-- Endpoint 3: /api/wifi -->
+    <!-- Endpoint: /api/wifi -->
     <div class="endpoint-card">
       <div class="endpoint-header">
         <div class="endpoint-title">
@@ -119,7 +138,7 @@
       <pre><code>curl -s http://localhost:3000/api/wifi</code></pre>
     </div>
 
-    <!-- Endpoint 4: /api/router -->
+    <!-- Endpoint: /api/router -->
     <div class="endpoint-card">
       <div class="endpoint-header">
         <div class="endpoint-title">
@@ -134,7 +153,7 @@
       <pre><code>curl -s http://localhost:3000/api/router</code></pre>
     </div>
 
-    <!-- Endpoint 5: /api/scan -->
+    <!-- Endpoint: /api/scan -->
     <div class="endpoint-card">
       <div class="endpoint-header">
         <div class="endpoint-title">
@@ -148,7 +167,7 @@
       <pre><code>curl -X POST http://localhost:3000/api/scan</code></pre>
     </div>
 
-    <!-- Endpoint 6: /api/version -->
+    <!-- Endpoint: /api/version -->
     <div class="endpoint-card">
       <div class="endpoint-header">
         <div class="endpoint-title">

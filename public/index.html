@@ -87,7 +87,7 @@
       align-items: center;
       gap: 6px;
       text-decoration: none;
-      transition: background 0.2s, transform 0.1s;
+      transition: all 0.2s;
     }
 
     .btn:hover { background: var(--accent-hover); }
@@ -101,6 +101,16 @@
     }
     .btn-secondary:hover {
       background: rgba(255, 255, 255, 0.12);
+    }
+
+    .btn-speed {
+      background: linear-gradient(135deg, #2563eb, #7c3aed);
+      border: 1px solid rgba(147, 197, 253, 0.3);
+      box-shadow: 0 2px 10px rgba(37, 99, 235, 0.3);
+    }
+    .btn-speed:hover {
+      background: linear-gradient(135deg, #1d4ed8, #6d28d9);
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
     }
 
     .pulse-dot {
@@ -283,13 +293,14 @@
   <div class="container">
     <header>
       <div class="title-group">
-        <h1><span class="pulse-dot"></span> Grima <span class="badge badge-version" id="version-badge">v0.1.0</span></h1>
+        <h1><span class="pulse-dot"></span> Grima <span class="badge badge-version" id="version-badge">v0.2.0</span></h1>
         <p id="sub-header">Wi-Fi & Network Telemetry Daemon</p>
       </div>
       <div class="actions">
         <span class="badge badge-ts" id="ts-badge">Tailscale: 100.86.96.26</span>
+        <button class="btn btn-speed" id="speed-btn" onclick="triggerSpeedTest()">⚡ Speed Test</button>
         <a href="/docs" class="btn btn-secondary">📖 API Docs</a>
-        <button class="btn" id="refresh-btn" onclick="triggerScan()">↻ Refresh Now</button>
+        <button class="btn" id="refresh-btn" onclick="triggerScan()">↻ Refresh</button>
       </div>
     </header>
 
@@ -315,7 +326,22 @@
         <div class="card-sub" id="wifi-details-sub">--</div>
       </div>
 
-      <!-- Card 3: Router & Gateway -->
+      <!-- Card 3: Internet Speed Test -->
+      <div class="card" style="border-color: rgba(99, 102, 241, 0.25);">
+        <div class="card-title">
+          <span>Internet Speed</span>
+          <span class="badge badge-info" id="speed-status-badge">Ready</span>
+        </div>
+        <div class="card-val" id="speed-val" style="font-size: 1.5rem;">
+          <span id="speed-down-val" style="color: #60a5fa;">--</span>
+          <span style="font-size: 0.9rem; font-weight: normal; color: var(--text-muted);">Mbps ↓</span>
+          <span id="speed-up-val" style="color: #34d399; margin-left: 8px;">--</span>
+          <span style="font-size: 0.9rem; font-weight: normal; color: var(--text-muted);">Mbps ↑</span>
+        </div>
+        <div class="card-sub" id="speed-sub">Click "⚡ Speed Test" to benchmark</div>
+      </div>
+
+      <!-- Card 4: Router & Gateway -->
       <div class="card">
         <div class="card-title">
           <span>Router & Gateway</span>
@@ -325,10 +351,10 @@
         <div class="card-sub" id="router-sub">WAN: --</div>
       </div>
 
-      <!-- Card 4: Network Latency -->
+      <!-- Card 5: Network Latency -->
       <div class="card">
         <div class="card-title">
-          <span>Latency & Speed</span>
+          <span>Latency & Link</span>
           <span class="badge badge-success" id="speed-badge">1 Gbps</span>
         </div>
         <div class="card-val" id="ping-val">-- <span style="font-size: 1rem; font-weight: normal; color: var(--text-muted);">ms</span></div>
@@ -415,6 +441,7 @@
         <a href="/docs"><strong>📖 API Docs</strong></a>
         <a href="/docs/openapi.json" target="_blank">OpenAPI Spec</a>
         <a href="/llms.txt" target="_blank">llms.txt for Agents</a>
+        <a href="/api/speedtest" target="_blank">/api/speedtest</a>
         <a href="/api/status" target="_blank">/api/status</a>
         <a href="/api/devices" target="_blank">/api/devices</a>
         <a href="/api/wifi" target="_blank">/api/wifi</a>
@@ -449,9 +476,45 @@
         console.error(e);
       } finally {
         btn.disabled = false;
-        btn.textContent = '↻ Refresh Now';
+        btn.textContent = '↻ Refresh';
         startTimer();
       }
+    }
+
+    async function triggerSpeedTest() {
+      const btn = document.getElementById('speed-btn');
+      const statusBadge = document.getElementById('speed-status-badge');
+      const sub = document.getElementById('speed-sub');
+
+      btn.disabled = true;
+      btn.textContent = '⏳ Testing...';
+      statusBadge.textContent = 'Benchmarking';
+      statusBadge.className = 'badge badge-warning';
+      sub.textContent = 'Testing latency, download, & upload...';
+
+      try {
+        const res = await fetch('/api/speedtest', { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'success') {
+          renderSpeedTest(data);
+        } else if (data.error) {
+          sub.textContent = data.error;
+        }
+      } catch (e) {
+        sub.textContent = 'Speed test failed: ' + e.message;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '⚡ Speed Test';
+      }
+    }
+
+    function renderSpeedTest(st) {
+      if (!st) return;
+      document.getElementById('speed-down-val').textContent = st.downloadMbps ? Math.round(st.downloadMbps) : '--';
+      document.getElementById('speed-up-val').textContent = st.uploadMbps ? Math.round(st.uploadMbps) : '--';
+      document.getElementById('speed-status-badge').textContent = 'Completed';
+      document.getElementById('speed-status-badge').className = 'badge badge-success';
+      document.getElementById('speed-sub').textContent = `${st.server || 'Edge'} · ${st.pingMs || '--'}ms ping (${st.jitterMs || 0}ms jitter) · ${st.totalDurationSeconds}s`;
     }
 
     async function fetchStatus() {
@@ -474,9 +537,14 @@
       const host = data.host || {};
       const iface = data.interfaceStats || {};
       const ts = data.tailscale || {};
+      const st = data.lastSpeedTest;
 
       if (data.version) {
         document.getElementById('version-badge').textContent = `v${data.version}`;
+      }
+
+      if (st) {
+        renderSpeedTest(st);
       }
 
       // Header

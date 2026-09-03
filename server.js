@@ -2,6 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const scanner = require('./scanner');
+const speedTester = require('./speedtest');
 const pkg = require('./package.json');
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -58,7 +59,7 @@ const server = http.createServer(async (req, res) => {
     return res.end();
   }
 
-  // --- Documentation Endpoints for LLMs and Clients ---
+  // --- Documentation Endpoints ---
   if ((pathname === '/docs' || pathname === '/api/docs') && (isGet || isHead)) {
     return serveFile(res, path.join(__dirname, 'public', 'docs.html'), 'text/html; charset=utf-8', isHead);
   }
@@ -74,7 +75,6 @@ const server = http.createServer(async (req, res) => {
   // --- API Routes ---
   if (pathname === '/api/status' && (isGet || isHead)) {
     const data = scanner.cachedData || await scanner.scanAll();
-    const tsInfo = scanner.getTailscaleInfo();
     const hostHeader = req.headers.host || `localhost:${PORT}`;
     const baseUrl = `http://${hostHeader}`;
 
@@ -87,6 +87,7 @@ const server = http.createServer(async (req, res) => {
         llmsTxtUrl: `${baseUrl}/llms.txt`,
         description: 'Grima API documentation, OpenAPI 3.0 schema, and agent implementation guide for LLMs and clients.'
       },
+      lastSpeedTest: speedTester.lastResult,
       ...data
     }, isHead);
   }
@@ -109,6 +110,28 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/api/router' && (isGet || isHead)) {
     const data = scanner.cachedData || await scanner.scanAll();
     return sendJson(res, 200, data.router, isHead);
+  }
+
+  // --- Speed Test API Endpoints ---
+  if (pathname === '/api/speedtest' && req.method === 'POST') {
+    try {
+      const result = await speedTester.runSpeedTest();
+      return sendJson(res, 200, result);
+    } catch (e) {
+      return sendJson(res, 429, { error: e.message, running: speedTester.isRunning });
+    }
+  }
+
+  if (pathname === '/api/speedtest' && (isGet || isHead)) {
+    if (speedTester.lastResult) {
+      return sendJson(res, 200, speedTester.lastResult, isHead);
+    }
+    try {
+      const result = await speedTester.runSpeedTest();
+      return sendJson(res, 200, result, isHead);
+    } catch (e) {
+      return sendJson(res, 429, { error: e.message, running: speedTester.isRunning }, isHead);
+    }
   }
 
   if (pathname === '/api/version' && (isGet || isHead)) {
@@ -143,6 +166,7 @@ const server = http.createServer(async (req, res) => {
       '/api/devices',
       '/api/wifi',
       '/api/router',
+      '/api/speedtest',
       '/api/version',
       '/api/scan'
     ]
@@ -155,8 +179,7 @@ server.listen(PORT, HOST, () => {
   console.log(`  Grima v${pkg.version} is running!`);
   console.log(`  Dashboard:     http://localhost:${PORT}`);
   console.log(`  API Docs:      http://localhost:${PORT}/docs`);
-  console.log(`  OpenAPI Spec:  http://localhost:${PORT}/docs/openapi.json`);
-  console.log(`  LLMs Guide:    http://localhost:${PORT}/llms.txt`);
+  console.log(`  Speed Test:    http://localhost:${PORT}/api/speedtest`);
   console.log(`  Tailscale:     http://${tsInfo.ip}:${PORT}`);
   console.log(`  Tailscale DNS: http://${tsInfo.hostname}:${PORT}`);
   console.log(`========================================================`);
