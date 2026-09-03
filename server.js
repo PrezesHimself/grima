@@ -94,10 +94,14 @@ const server = http.createServer(async (req, res) => {
 
   if (pathname === '/api/devices' && (isGet || isHead)) {
     const data = scanner.cachedData || await scanner.scanAll();
+    const clients = data.devices.filter(d => !d.isRouter && !d.isLocalHost);
+    const classCounts = {};
+    clients.forEach((d) => { const c = d.deviceClass || 'unknown'; classCounts[c] = (classCounts[c] || 0) + 1; });
     return sendJson(res, 200, {
       count: data.summary.connectedClientsCount,
       wifiCount: data.summary.wifiClientsCount,
       wiredCount: data.summary.wiredClientsCount,
+      deviceClassCounts: classCounts,
       devices: data.devices
     }, isHead);
   }

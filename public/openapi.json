@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Grima Telemetry API",
-    "description": "Real-time Wi-Fi status, connected devices, on-demand speed test, and network telemetry API for clients, LLMs, and autonomous agents.",
-    "version": "0.3.0"
+    "description": "Real-time Wi-Fi status, connected devices with automatic class detection (phone/laptop/tv/iot), on-demand speed test, and network telemetry API for clients, LLMs, and autonomous agents.",
+    "version": "0.4.0"
   },
   "servers": [
     {
@@ -70,7 +70,7 @@
     "/api/devices": {
       "get": {
         "summary": "Get connected devices inventory",
-        "description": "Returns active devices discovered on the local subnet (/24) including IP, MAC, hardware manufacturer (IEEE OUI), friendly name, medium (Wi-Fi/Ethernet), and ping latency.",
+        "description": "Returns active devices discovered on the local subnet (/24) including IP, MAC, hardware manufacturer (IEEE OUI), friendly name, medium (Wi-Fi/Ethernet), automatic device class (phone/laptop/tv/iot/router/server), and ping latency.",
         "responses": {
           "200": {
             "description": "List of active network devices",
@@ -192,6 +192,18 @@
           "vendor": { "type": "string", "example": "Xiaomi (Iton Tech)" },
           "type": { "type": "string", "example": "Smart TV / Streaming" },
           "medium": { "type": "string", "enum": ["Wi-Fi", "Wired Ethernet (enp1s0)", "Router / AP"] },
+          "deviceClass": {
+            "type": "string",
+            "description": "Automatic device classification derived from MAC randomization detection, IEEE OUI vendor signature, mDNS/DNS-SD service discovery, and SSH port probing.",
+            "enum": ["phone", "laptop", "tv", "iot", "router", "server", "unknown"],
+            "example": "phone"
+          },
+          "macRandomized": {
+            "type": "boolean",
+            "description": "True when the MAC is locally administered (randomized) — typical of iOS/Android Wi-Fi privacy.",
+            "example": true
+          },
+          "classReason": { "type": "string", "example": "Randomized (locally administered) MAC — iOS/Android Wi-Fi privacy" },
           "latencyMs": { "type": "number", "nullable": true, "example": 1.2 },
           "state": { "type": "string", "example": "REACHABLE" },
           "isRouter": { "type": "boolean" },
@@ -204,6 +216,12 @@
           "count": { "type": "integer" },
           "wifiCount": { "type": "integer" },
           "wiredCount": { "type": "integer" },
+          "deviceClassCounts": {
+            "type": "object",
+            "description": "Client devices grouped by detected class (router and local host excluded).",
+            "additionalProperties": { "type": "integer" },
+            "example": { "phone": 1, "laptop": 1, "iot": 2 }
+          },
           "devices": {
             "type": "array",
             "items": { "$ref": "#/components/schemas/Device" }

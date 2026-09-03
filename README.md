@@ -10,6 +10,7 @@ Grima monitors your local network, tracks connected Wi-Fi and wired clients, que
 
 - **Subnet ARP & UDP Device Discovery**: Automatically catalogs active devices on the local `/24` subnet.
 - **Hardware Vendor Classification**: Identifies device manufacturers using the IEEE OUI database (Xiaomi, Blaupunkt, Intel, Dell Wyse, etc.).
+- **Device Type Detection**: Automatically classifies each client as `phone`, `laptop`, `tv`, or `iot` using MAC randomization detection (iOS/Android Wi-Fi privacy), OUI vendor signatures, mDNS/DNS-SD service discovery, and SSH port probing — exposed per-device (`deviceClass`, `macRandomized`, `classReason`) and aggregated (`deviceClassCounts`).
 - **UPnP / SSDP Friendly Name Resolution**: Resolves device friendly names (e.g. "Pendrive Mi TV", "BlaupunktDMR").
 - **Wi-Fi Spectrum & Signal Monitoring**: Dual-band scanning (2.4 GHz & 5 GHz) showing signal %, dBm, channels, bitrates, and security.
 - **Router Gateway Telemetry**: Queries Mercusys / TP-Link router for WAN IP, router uptime, and connection state.
@@ -36,8 +37,11 @@ Grima monitors your local network, tracks connected Wi-Fi and wired clients, que
 | `/api/devices` | `GET` | Connected devices breakdown (count, IP, MAC, vendor, medium, latency) |
 | `/api/wifi` | `GET` | Wi-Fi spectrum and nearby networks |
 | `/api/router` | `GET` | Router WAN IP, uptime, model, and gateway status |
+| `/api/speedtest` | `POST` | Run an on-demand internet speed test (ping, jitter, download, upload) via Cloudflare edge |
+| `/api/speedtest` | `GET` | Get the latest cached speed test result (runs one if none exists) |
 | `/api/version` | `GET` | Current Grima release version and metadata |
 | `/api/scan` | `POST` | Trigger an immediate manual re-scan |
+| `/docs` | `GET` | Interactive API documentation + OpenAPI 3.0 schema (`/docs/openapi.json`) and `llms.txt` agent guide |
 
 ---
 

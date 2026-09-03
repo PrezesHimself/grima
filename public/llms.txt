@@ -1,6 +1,6 @@
 # Grima Network Telemetry API (for AI Agents & LLMs)
 
-> Grima is a real-time local network daemon running on a Dell Wyse host in a local network. It continuously scans the local subnet (/24), parses IEEE OUI vendor identifiers, tracks connected devices (Wi-Fi vs Wired), queries router gateway metrics over UPnP IGD, monitors Wi-Fi radio frequencies, runs on-demand speed tests, and exposes metrics via HTTP and Tailscale.
+> Grima is a real-time local network daemon running on a Dell Wyse host in a local network. It continuously scans the local subnet (/24), parses IEEE OUI vendor identifiers, tracks connected devices (Wi-Fi vs Wired), automatically classifies each device (phone / laptop / TV / IoT) using MAC randomization detection, OUI vendor signatures, mDNS service discovery, and SSH port probing, queries router gateway metrics over UPnP IGD, monitors Wi-Fi radio frequencies, runs on-demand speed tests, and exposes metrics via HTTP and Tailscale.
 
 ## Quick Reference
 
@@ -15,7 +15,7 @@
 
 ### 1. `GET /api/status`
 Returns full aggregated state:
-- `summary`: High-level counts (`totalDevices`, `connectedClientsCount`, `wifiClientsCount`, `wiredClientsCount`), `primaryWifiSsid`, `routerModel`, `externalIp`, `tailscaleIp`, `gatewayPingMs`, `internetPingMs`.
+- `summary`: High-level counts (`totalDevices`, `connectedClientsCount`, `wifiClientsCount`, `wiredClientsCount`, `deviceClassCounts`), `primaryWifiSsid`, `routerModel`, `externalIp`, `tailscaleIp`, `gatewayPingMs`, `internetPingMs`.
 - `lastSpeedTest`: Most recent speed test result (or null).
 - `documentation`: Direct links to `/docs`, `/docs/openapi.json`, and `/llms.txt`.
 - `devices`: Array of all active network nodes (IP, MAC, vendor, friendly name, Wi-Fi/wired medium, ping RTT).
@@ -40,12 +40,16 @@ Returns active network devices:
 - `count`: Total client devices excluding the router.
 - `wifiCount`: Clients connected via Wi-Fi.
 - `wiredCount`: Clients connected via Ethernet.
+- `deviceClassCounts`: Client devices grouped by detected class, e.g. `{ "phone": 1, "laptop": 1 }`.
 - `devices`: Array of device objects. Each device has:
   - `ip`: IPv4 address (e.g. `192.168.1.102`)
   - `mac`: Physical MAC address (e.g. `70:3e:97:7e:e6:e2`)
   - `name`: Resolved friendly name (e.g. `Pendrive Mi TV`)
   - `vendor`: IEEE OUI vendor (e.g. `Xiaomi (Iton Tech)`)
   - `medium`: `"Wi-Fi"`, `"Wired Ethernet (enp1s0)"`, or `"Router / AP"`
+  - `deviceClass`: Automatic classification — one of `"phone"`, `"laptop"`, `"tv"`, `"iot"`, `"router"`, `"server"`, `"unknown"`. Derived from (in priority order): seeded registry, mDNS hostname patterns (iPhone/Pixel/Galaxy/...), MAC randomization detection (locally administered MACs are the iOS/Android Wi-Fi privacy default — a very strong phone signal), IEEE OUI vendor signature (Intel/Qualcomm Atheros → laptop, Espressif/Tuya/Xiaomi → IoT, Apple → SSH tiebreak), and SSH port 22 probing.
+  - `macRandomized`: Boolean — true when the MAC is locally administered (randomized).
+  - `classReason`: Human-readable explanation of how the class was decided.
   - `latencyMs`: RTT ping time or null if ICMP is filtered
   - `state`: `"REACHABLE"`, `"DELAY"`, `"STALE"`, or `"LOCAL"`
   - `isRouter`: Boolean
@@ -77,9 +81,12 @@ Returns Grima's semantic version and package metadata.
    Schedule periodic calls to `POST /api/speedtest` to log daily internet performance trends and detect ISP throttling during peak evening hours.
 2. **Intruder & New Device Alerts**:
    Poll `/api/devices` to detect unrecognized MAC addresses or unknown manufacturers connecting to the home network.
-3. **Presence Detection / Home Automation**:
+3. **Phone vs Laptop / Presence by Class**:
+   Use `deviceClass` and `deviceClassCounts` to answer "is my phone home?" — e.g. alert when a `phone`-class device transitions from absent to `REACHABLE`, or track how many laptops are on the LAN.
+4. **Presence Detection / Home Automation**:
    Check when specific devices become active (`REACHABLE`) or drop to trigger smart home routines.
-4. **Wi-Fi Optimization & Channel Analyzer**:
+5. **Wi-Fi Optimization & Channel Analyzer**:
    Analyze `/api/wifi` to find crowded Wi-Fi channels in the 2.4 GHz and 5 GHz bands and recommend less congested channels.
-5. **LAN vs ISP Latency Watchdog**:
+6. **LAN vs ISP Latency Watchdog**:
    Compare `gatewayPingMs` against `internetPingMs` and `pingMs` to isolate network congestion.
+

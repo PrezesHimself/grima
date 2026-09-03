@@ -114,11 +114,13 @@ curl -s http://localhost:3000/api/speedtest</code></pre>
         <div class="endpoint-title">
           <span class="method method-get">GET</span>
           <span>/api/devices</span>
+          <span style="font-size: 0.75rem; background: rgba(16, 185, 129, 0.2); color: #34d399; padding: 2px 8px; border-radius: 4px;">Enhanced in v0.4.0</span>
         </div>
         <a href="/api/devices" target="_blank" class="try-btn">Open Live Output ↗</a>
       </div>
       <div class="endpoint-desc">
-        Returns list of all active network nodes on the local subnet (/24) including IP, MAC address, manufacturer from IEEE OUI database, friendly name (SSDP/UPnP), connection medium (Wi-Fi vs Wired), and ping RTT.
+        Returns list of all active network nodes on the local subnet (/24) including IP, MAC address, manufacturer from IEEE OUI database, friendly name (SSDP/UPnP), connection medium (Wi-Fi vs Wired), ping RTT, and <strong>automatic device classification</strong>.
+        Each device carries a <code>deviceClass</code> (<code>phone</code>, <code>laptop</code>, <code>tv</code>, <code>iot</code>, <code>router</code>, <code>server</code>, or <code>unknown</code>) plus <code>macRandomized</code> and a human-readable <code>classReason</code>. Classification layers, in priority order: seeded device registry → mDNS hostname patterns (iPhone/Pixel/Galaxy/…) → MAC randomization detection (locally administered MACs are the iOS/Android Wi-Fi privacy default — a strong phone signal) → IEEE OUI vendor signature (Intel/Qualcomm Atheros → laptop; Espressif/Tuya/Xiaomi → IoT; Apple → SSH tiebreak) → SSH port 22 probing. The response also includes <code>deviceClassCounts</code>, e.g. <code>{"phone": 1, "laptop": 1}</code>.
       </div>
       <pre><code>curl -s http://localhost:3000/api/devices</code></pre>
     </div>

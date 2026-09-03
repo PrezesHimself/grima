@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.4.0] - 2026-09-03
+
+### Changed
+- Add automatic device type detection (phone/laptop/tv/iot) via MAC randomization, OUI signatures, mDNS discovery, and SSH probing
+
 ## [0.3.0] - 2026-09-03
 
 ### Changed

@@ -1,6 +1,7 @@
 const fs = require('fs');
 const http = require('http');
 const dgram = require('dgram');
+const net = require('net');
 const os = require('os');
 const { exec, execFile } = require('child_process');
 
@@ -8,6 +9,7 @@ class NetworkScanner {
   constructor() {
     this.ouiMap = new Map();
     this.deviceRegistry = new Map();
+    this.mdnsCache = new Map(); // ip -> { names: Set, ts }
     this.cachedData = null;
     this.isScanning = false;
     this.lastScanTime = 0;
@@ -77,6 +79,193 @@ class NetworkScanner {
     if (!mac) return 'Unknown';
     const clean = mac.replace(/[:-]/g, '').toUpperCase().slice(0, 6);
     return this.ouiMap.get(clean) || 'Unknown Vendor';
+  }
+
+  // --- Device Classification (phone / laptop / tv / iot / ...) ---
+
+  isRandomizedMac(mac) {
+    if (!mac) return false;
+    const first = parseInt(mac.replace(/[:-]/g, '').slice(0, 2), 16);
+    if (Number.isNaN(first)) return false;
+    // U/L bit: 1 = locally administered (randomized/private MAC)
+    return ((first >> 1) & 1) === 1;
+  }
+
+  probeTcpPort(ip, port = 22, timeoutMs = 1200) {
+    return new Promise((resolve) => {
+      let done = false;
+      const sock = net.connect({ host: ip, port, timeout: timeoutMs });
+      const finish = (val) => {
+        if (done) return;
+        done = true;
+        try { sock.destroy(); } catch (e) {}
+        resolve(val);
+      };
+      sock.once('connect', () => finish(true));
+      sock.once('timeout', () => finish(false));
+      sock.once('error', () => finish(false));
+    });
+  }
+
+  skipDnsName(buf, offset) {
+    while (offset < buf.length) {
+      const len = buf[offset];
+      if (len === 0) return offset + 1;
+      if ((len & 0xc0) === 0xc0) return offset + 2; // compression pointer
+      offset += len + 1;
+    }
+    return null;
+  }
+
+  readDnsName(buf, offset, out = []) {
+    let hops = 0;
+    while (offset < buf.length && hops < 12) {
+      const len = buf[offset];
+      if (len === 0) { offset += 1; break; }
+      if ((len & 0xc0) === 0xc0) {
+        hops++;
+        const target = ((len & 0x3f) << 8) | buf[offset + 1];
+        this.readDnsName(buf, target, out);
+        break;
+      }
+      out.push(buf.toString('utf8', offset + 1, offset + 1 + len));
+      offset += len + 1;
+    }
+    return out;
+  }
+
+  // Broadcast mDNS/DNS-SD queries and collect advertised service names per source IP.
+  async discoverMdns(timeoutMs = 2000) {
+    const found = new Map(); // ip -> Set<name>
+    let socket = null;
+    try {
+      socket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+      socket.on('error', () => {});
+      await new Promise((r) => socket.bind(0, r));
+
+      const handlePacket = (buf, srcIp) => {
+        try {
+          if (buf.length < 12) return;
+          const qd = buf.readUInt16BE(4);
+          const an = buf.readUInt16BE(6);
+          const ns = buf.readUInt16BE(8);
+          const ar = buf.readUInt16BE(10);
+          let offset = 12;
+          for (let i = 0; i < qd; i++) {
+            offset = this.skipDnsName(buf, offset);
+            if (offset === null) return;
+            offset += 4; // type + class
+          }
+          const records = an + ns + ar;
+          for (let i = 0; i < records; i++) {
+            const nameStart = offset;
+            offset = this.skipDnsName(buf, offset);
+            if (offset === null || offset + 10 > buf.length) return;
+            const rdlen = buf.readUInt16BE(offset + 8);
+            const name = this.readDnsName(buf, nameStart, []).join('.');
+            if (name && srcIp !== '192.168.1.104' && srcIp !== '127.0.0.1') {
+              let set = found.get(srcIp);
+              if (!set) { set = new Set(); found.set(srcIp, set); }
+              set.add(name.toLowerCase());
+            }
+            offset += 10 + rdlen;
+          }
+        } catch (e) { /* malformed packet — ignore */ }
+      };
+
+      socket.on('message', (msg, rinfo) => handlePacket(msg, rinfo.address));
+
+      const sendQuery = (qname) => {
+        const parts = [];
+        for (const label of qname.split('.')) {
+          if (!label || label.length > 63) continue;
+          parts.push(Buffer.from([label.length]), Buffer.from(label, 'utf8'));
+        }
+        parts.push(Buffer.from([0]));
+        const header = Buffer.alloc(12);
+        header.writeUInt16BE(0x8000, 2); // unicast-response bit
+        header.writeUInt16BE(1, 4);      // one question
+        const packet = Buffer.concat([header, ...parts, Buffer.from([0, 12, 0, 1])]); // PTR / IN
+        socket.send(packet, 5353, '224.0.0.251');
+      };
+
+      sendQuery('_services._dns-sd._udp.local');
+      ['_airplay._tcp', '_googlecast._tcp', '_ipps._tcp', '_http._tcp'].forEach((t) => sendQuery(`${t}.local`));
+
+      await new Promise((r) => setTimeout(r, timeoutMs));
+    } catch (e) {
+      // mDNS unavailable — classification falls back to MAC/OUI/SSH signals
+    } finally {
+      if (socket) { try { socket.close(); } catch (e) {} }
+    }
+
+    // Merge with recent cache so devices that don't re-announce keep their services
+    const now = Date.now();
+    for (const [ip, entry] of this.mdnsCache.entries()) {
+      if (now - entry.ts < 90000 && !found.has(ip)) found.set(ip, entry.names);
+    }
+    for (const [ip, names] of found.entries()) {
+      this.mdnsCache.set(ip, { names, ts: now });
+    }
+    for (const [ip, entry] of this.mdnsCache.entries()) {
+      if (now - entry.ts > 180000) this.mdnsCache.delete(ip);
+    }
+    return found;
+  }
+
+  classifyByVendor(vendor) {
+    const v = (vendor || '').toUpperCase();
+    if (!v || v.includes('UNKNOWN')) return null;
+    if (v.includes('SAMSUNG MOBILE') || v.includes('XIAOMI MOBILE') || v.includes('GOOGLE')) return 'phone';
+    if (v.includes('INTEL') || v.includes('DELL') || v.includes('HEWLETT') || v.includes('LENOVO') ||
+        v.includes('ASUSTEK') || v.includes('MICROSOFT') || v.includes('QUALCOMM ATHENOS') ||
+        v.includes('BROADCOM') || v.includes('MEDIATEK') || v.includes('REALTEK')) return 'laptop';
+    if (v.includes('APPLE')) return 'apple'; // needs SSH tiebreak
+    if (v.includes('ESPRESSIF') || v.includes('TUYA') || v.includes('SONOFF') || v.includes('XIAOMI') ||
+        v.includes('ITON TECH') || v.includes('RF-LINK') || v.includes('BLAUPUNKT') ||
+        v.includes('AMPAQUE') || v.includes('SMARTNIGHT') || v.includes('ATEME')) return 'iot';
+    return null;
+  }
+
+  classifyDevice({ mac, vendor, seededType = null, isRouter = false, isLocalHost = false }, sshOpen = false, mdnsNames = []) {
+    if (isRouter) return { deviceClass: 'router', classReason: 'Network gateway' };
+    if (isLocalHost) return { deviceClass: 'server', classReason: 'Grima host machine' };
+
+    const names = mdnsNames.map((n) => n.toLowerCase()).join(' ');
+
+    // 1. Seeded/registered devices: derive from curated type
+    if (seededType) {
+      const t = seededType.toLowerCase();
+      if (t.includes('tv') || t.includes('streaming')) return { deviceClass: 'tv', classReason: `Seeded registry: ${seededType}` };
+      if (t.includes('computer') || t.includes('laptop') || t.includes('pc')) return { deviceClass: 'laptop', classReason: `Seeded registry: ${seededType}` };
+    }
+
+    // 2. mDNS hostname patterns (strongest positive evidence)
+    if (/(iphone|ipad|pixel|galaxy|oneplus|redmi|android)/.test(names)) {
+      return { deviceClass: 'phone', classReason: `mDNS hostname pattern in advertised services` };
+    }
+    if (/(_ipps|_ipp\b|cups|printer)/.test(names)) {
+      return { deviceClass: 'iot', classReason: 'mDNS printer/IPP service advertised' };
+    }
+
+    // 3. Randomized MAC → almost certainly iOS/Android Wi-Fi privacy feature
+    if (this.isRandomizedMac(mac)) {
+      if (sshOpen) return { deviceClass: 'laptop', classReason: 'Randomized MAC but SSH exposed — likely laptop with MAC randomization' };
+      return { deviceClass: 'phone', classReason: 'Randomized (locally administered) MAC — iOS/Android Wi-Fi privacy' };
+    }
+
+    // 4. OUI vendor signature
+    const byVendor = this.classifyByVendor(vendor);
+    if (byVendor === 'apple') {
+      return sshOpen
+        ? { deviceClass: 'laptop', classReason: 'Apple OUI + SSH exposed — likely macOS laptop' }
+        : { deviceClass: 'phone', classReason: 'Apple OUI, no SSH — likely iPhone/iPad' };
+    }
+    if (byVendor) return { deviceClass: byVendor, classReason: `OUI vendor signature: ${vendor}` };
+
+    // 5. Fallbacks
+    if (sshOpen) return { deviceClass: 'laptop', classReason: 'SSH service exposed — likely computer' };
+    return { deviceClass: 'unknown', classReason: 'No distinguishing signals' };
   }
 
   execCommand(cmd, timeout = 4000) {
@@ -240,6 +429,7 @@ class NetworkScanner {
   }
 
   async scanConnectedDevices() {
+    const mdnsPromise = this.discoverMdns(); // runs in parallel with the sweep below
     await this.sweepSubnet();
 
     const [neighRaw, arpRaw] = await Promise.all([
@@ -293,7 +483,10 @@ class NetworkScanner {
       latencyMs: 0.05,
       state: 'LOCAL',
       isLocalHost: true,
-      isRouter: false
+      isRouter: false,
+      deviceClass: 'server',
+      macRandomized: false,
+      classReason: 'Grima host machine'
     });
 
     const routerMac = '08:8a:f1:5e:5d:bc';
@@ -301,6 +494,7 @@ class NetworkScanner {
       activeMap.set(routerMac, { ip: '192.168.1.1', mac: routerMac, state: 'REACHABLE' });
     }
 
+    const mdnsMap = await mdnsPromise;
     const latencyPromises = [];
 
     for (const [mac, info] of activeMap.entries()) {
@@ -328,8 +522,17 @@ class NetworkScanner {
       devices.push(devObj);
 
       latencyPromises.push(
-        this.pingLatency(info.ip).then((lat) => {
+        Promise.all([this.pingLatency(info.ip), this.probeTcpPort(info.ip, 22)]).then(([lat, sshOpen]) => {
           devObj.latencyMs = lat;
+          const mdnsNames = mdnsMap.get(info.ip) ? [...mdnsMap.get(info.ip)] : [];
+          const cls = this.classifyDevice(
+            { mac, vendor, seededType: registered?.type || null, isRouter: info.ip === '192.168.1.1', isLocalHost: false },
+            sshOpen,
+            mdnsNames
+          );
+          devObj.deviceClass = cls.deviceClass;
+          devObj.macRandomized = this.isRandomizedMac(mac);
+          devObj.classReason = cls.classReason;
         })
       );
     }
@@ -439,6 +642,11 @@ class NetworkScanner {
           connectedClientsCount: clients.length,
           wifiClientsCount: wifiClients.length,
           wiredClientsCount: wiredClients.length,
+          deviceClassCounts: (() => {
+            const counts = {};
+            clients.forEach((d) => { const c = d.deviceClass || 'unknown'; counts[c] = (counts[c] || 0) + 1; });
+            return counts;
+          })(),
           primaryWifiSsid,
           routerModel: router.model,
           externalIp: router.externalIp,

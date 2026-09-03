@@ -378,11 +378,12 @@
               <th>MAC Address</th>
               <th>Vendor / Manufacturer</th>
               <th>Medium</th>
+              <th>Class</th>
               <th>Latency</th>
             </tr>
           </thead>
           <tbody id="devices-tbody">
-            <tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 24px;">Loading active devices...</td></tr>
+            <tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 24px;">Loading active devices...</td></tr>
           </tbody>
         </table>
       </div>
@@ -592,14 +593,22 @@
 
         const latText = d.latencyMs !== null ? `${d.latencyMs.toFixed(2)} ms` : '<span style="color: var(--text-muted);">ICMP Blocked</span>';
 
+        const classMeta = {
+          phone: ['📱', 'Phone'], laptop: ['💻', 'Laptop'], tv: ['📺', 'TV / Media'],
+          iot: ['🔌', 'IoT'], router: ['🌐', 'Router'], server: ['🖥️', 'Server'], unknown: ['❓', 'Unknown']
+        };
+        const [classEmoji, classLabel] = classMeta[d.deviceClass] || ['❓', 'Unknown'];
+        const classBadge = `<span class="badge badge-info" title="${escapeHtml(d.classReason || '')}">${classEmoji} ${classLabel}</span>`;
+
         return `
           <tr>
             <td>${statusBadge}</td>
             <td><strong>${escapeHtml(d.name)}</strong><br><small style="color: var(--text-muted);">${escapeHtml(d.type || '')}</small></td>
             <td><code>${escapeHtml(d.ip)}</code></td>
-            <td><code style="color: var(--text-muted);">${escapeHtml(d.mac)}</code></td>
+            <td><code style="color: var(--text-muted);">${escapeHtml(d.mac)}${d.macRandomized ? ' <span title="Randomized (locally administered) MAC" style="color: var(--warning);">🎲</span>' : ''}</code></td>
             <td>${escapeHtml(d.vendor)}</td>
             <td>${mediumBadge}</td>
+            <td>${classBadge}</td>
             <td>${latText}</td>
           </tr>
         `;
