@@ -13,6 +13,7 @@
  */
 
 const http = require('http');
+const { publish } = require('./events');
 
 const SHELLY_IP = process.env.SHELLY_IP || '192.168.1.102';
 const POLL_INTERVAL_MS = parseInt(process.env.SHELLY_POLL_MS || '5000', 10);
@@ -93,8 +94,11 @@ class ShellyPresenceBridge {
   // --- Event log ---
 
   recordEvent(type, detail) {
-    this.events.push({ ts: new Date().toISOString(), type, detail });
+    const evt = { ts: new Date().toISOString(), type, detail };
+    this.events.push(evt);
     if (this.events.length > MAX_EVENTS) this.events.splice(0, this.events.length - MAX_EVENTS);
+    // Broadcast to the unified Grima event stream (SSE + REST history)
+    publish('shelly', type, { ...detail, device: this.deviceInfo?.model || null });
   }
 
   // --- Polling loop ---

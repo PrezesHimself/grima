@@ -1,5 +1,6 @@
 const fs = require('fs');
 const http = require('http');
+const { publish } = require('./events');
 const dgram = require('dgram');
 const net = require('net');
 const os = require('os');
@@ -13,6 +14,11 @@ class NetworkScanner {
     this.cachedData = null;
     this.isScanning = false;
     this.lastScanTime = 0;
+
+    // LAN device transition tracking (connect/disconnect events)
+    this._lastSeenMacs = new Map(); // mac -> { info, missCount }
+    this._transitionsReady = false;
+    this.DISCONNECT_MISS_THRESHOLD = 2; // consecutive empty sweeps before declaring disconnect
 
     this.initOuiMap();
     this.seedKnownDevices();
@@ -681,6 +687,7 @@ class NetworkScanner {
       };
 
       this.lastScanTime = Date.now();
+      this._trackDeviceTransitions(devices);
     } catch (e) {
       console.error('Scan error:', e);
     } finally {
@@ -688,6 +695,54 @@ class NetworkScanner {
     }
 
     return this.cachedData;
+  }
+
+  /**
+   * Detect device connect/disconnect transitions between scans and publish
+   * them to the unified event stream. A device must be missing for
+   * DISCONNECT_MISS_THRESHOLD consecutive sweeps before a disconnect event
+   * fires (debounces ARP STALE/FAILED flapping).
+   */
+  _trackDeviceTransitions(devices) {
+    const current = new Map();
+    for (const d of devices) {
+      if (d.mac && d.mac !== 'unknown') current.set(d.mac, d);
+    }
+
+    if (!this._transitionsReady) {
+      // First scan after boot: seed the baseline silently (no event burst)
+      for (const [mac, info] of current.entries()) {
+        this._lastSeenMacs.set(mac, { info, missCount: 0 });
+      }
+      this._transitionsReady = true;
+      return;
+    }
+
+    // New or returning devices -> connected
+    for (const [mac, dev] of current.entries()) {
+      const prev = this._lastSeenMacs.get(mac);
+      if (!prev) {
+        publish('network', 'device_connected', {
+          ip: dev.ip, mac, name: dev.name, vendor: dev.vendor,
+          deviceClass: dev.deviceClass || null, medium: dev.medium
+        });
+      }
+      this._lastSeenMacs.set(mac, { info: dev, missCount: 0 });
+    }
+
+    // Missing devices -> debounce, then disconnect
+    for (const [mac, entry] of this._lastSeenMacs.entries()) {
+      if (current.has(mac)) continue;
+      entry.missCount++;
+      if (entry.missCount >= this.DISCONNECT_MISS_THRESHOLD) {
+        publish('network', 'device_disconnected', {
+          ip: entry.info.ip, mac, name: entry.info.name, vendor: entry.info.vendor,
+          deviceClass: entry.info.deviceClass || null, medium: entry.info.medium,
+          missedScans: entry.missCount
+        });
+        this._lastSeenMacs.delete(mac);
+      }
+    }
   }
 
   startPeriodicScan(intervalMs = 15000) {

@@ -4,6 +4,7 @@ const path = require('path');
 const scanner = require('./scanner');
 const speedTester = require('./speedtest');
 const shelly = require('./shelly');
+const { bus, getHistory } = require('./events');
 const pkg = require('./package.json');
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -130,6 +131,53 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, shelly.getPresenceSummary(), isHead);
   }
 
+  // --- Unified Event Stream Endpoints ---
+  if (pathname === '/api/events' && (isGet || isHead)) {
+    const events = getHistory();
+    return sendJson(res, 200, { count: events.length, events }, isHead);
+  }
+
+  if (pathname === '/api/events/stream' && req.method === 'GET') {
+    // Server-Sent Events: combined live feed of Shelly sensor + LAN device transitions
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+      'Access-Control-Allow-Origin': '*'
+    });
+
+    const writeSse = (eventName, data) => {
+      res.write(`event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+
+    // Initial snapshot so clients know the current state immediately
+    writeSse('connected', {
+      ts: new Date().toISOString(),
+      source: 'grima',
+      type: 'stream_connected',
+      detail: {
+        message: 'Event stream established. Presence events come from the Shelly sensor, device events from LAN scans.',
+        presence: shelly.getPresenceSummary(),
+        recentEvents: getHistory().slice(0, 20)
+      }
+    });
+
+    const onEvent = (evt) => writeSse(evt.type, evt);
+    bus.on('event', onEvent);
+
+    // Keep-alive ping so proxies/LBs don't drop the idle connection
+    const heartbeat = setInterval(() => {
+      res.write(`: heartbeat ${new Date().toISOString()}\n\n`);
+    }, 25000);
+
+    req.on('close', () => {
+      clearInterval(heartbeat);
+      bus.off('event', onEvent);
+    });
+    return;
+  }
+
   // --- Speed Test API Endpoints ---
   if (pathname === '/api/speedtest' && req.method === 'POST') {
     try {
@@ -186,6 +234,8 @@ const server = http.createServer(async (req, res) => {
       '/api/router',
       '/api/shelly',
       '/api/presence',
+      '/api/events',
+      '/api/events/stream',
       '/api/speedtest',
       '/api/version',
       '/api/scan'

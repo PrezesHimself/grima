@@ -157,6 +157,49 @@
         }
       }
     },
+    "/api/events/stream": {
+      "get": {
+        "summary": "Live unified event stream (SSE)",
+        "description": "Server-Sent Events stream combining all Grima sources: Shelly sensor events (presence_detected, presence_cleared, illuminance_changed, device_online/offline) and LAN device transitions (device_connected, device_disconnected from router ARP scans). Sends an initial `connected` snapshot event with current presence state and recent history, then pushes events in real time. A comment-line heartbeat is sent every 25s to keep proxies alive.",
+        "responses": {
+          "200": {
+            "description": "SSE stream",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrimaEvent"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/events": {
+      "get": {
+        "summary": "Get recent unified event history",
+        "description": "Returns the last 200 published events (newest first) from both sources: Shelly sensor state changes and LAN device connect/disconnect transitions. Useful for clients that cannot hold a persistent SSE connection.",
+        "responses": {
+          "200": {
+            "description": "Event history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "count": { "type": "integer" },
+                    "events": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/GrimaEvent" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/version": {
       "get": {
         "summary": "Get Grima version and metadata",
@@ -312,6 +355,28 @@
           "online": { "type": "boolean", "description": "Whether the Shelly device is reachable.", "example": true },
           "device": { "type": "string", "nullable": true, "example": "S4SN-0U61X" },
           "ip": { "type": "string", "example": "192.168.1.102" }
+        }
+      },
+      "GrimaEvent": {
+        "type": "object",
+        "description": "A single event from the unified Grima event stream (SSE /api/events/stream or REST /api/events).",
+        "properties": {
+          "ts": { "type": "string", "format": "date-time" },
+          "source": {
+            "type": "string",
+            "enum": ["shelly", "network", "grima"],
+            "description": "shelly = Shelly Presence sensor events; network = LAN device connect/disconnect transitions; grima = stream lifecycle."
+          },
+          "type": {
+            "type": "string",
+            "description": "Event type: presence_detected, presence_cleared, illuminance_changed, device_online, device_offline, track (shelly) or device_connected, device_disconnected (network).",
+            "example": "presence_detected"
+          },
+          "detail": {
+            "type": "object",
+            "description": "Event-specific payload. Shelly events include zone/numObjects/device; network events include ip, mac, name, vendor, deviceClass, medium.",
+            "example": { "present": true, "numObjects": 1, "zone": "Room", "device": "S4SN-0U61X" }
+          }
         }
       },
       "ShellyResponse": {

@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.6.0] - 2026-09-05
+
+### Changed
+- Unified real-time event stream: SSE endpoint GET /api/events/stream combines Shelly sensor events (presence detected/cleared, illuminance changes) with LAN device connect/disconnect transitions from router ARP scans (debounced over 2 consecutive empty sweeps). New events.js pub/sub bus with 200-event ring buffer; GET /api/events exposes recent history. Stream sends initial state snapshot on connect and 25s heartbeats.
+
 ## [0.5.0] - 2026-09-05
 
 ### Changed

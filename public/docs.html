@@ -187,6 +187,48 @@ curl -s http://localhost:3000/api/speedtest</code></pre>
       <pre><code>curl -s http://localhost:3000/api/presence</code></pre>
     </div>
 
+    <!-- Endpoint: /api/events/stream -->
+    <div class="endpoint-card" style="border-color: rgba(59, 130, 246, 0.3);">
+      <div class="endpoint-header">
+        <div class="endpoint-title">
+          <span class="method method-get">GET</span>
+          <span>/api/events/stream</span>
+          <span style="font-size: 0.75rem; background: rgba(59, 130, 246, 0.2); color: #93c5fd; padding: 2px 8px; border-radius: 4px;">New in v0.6.0</span>
+        </div>
+        <a href="/api/events/stream" target="_blank" class="try-btn">Open Live Stream ↗</a>
+      </div>
+      <div class="endpoint-desc">
+        <strong>Live SSE event stream</strong> combining all Grima sources in real time:
+        <ul style="margin: 10px 0 0 20px; color: var(--text-muted); font-size: 0.9rem;">
+          <li><code>source: "shelly"</code> — presence_detected / presence_cleared, illuminance_changed, device_online/offline from the Shelly mmWave sensor.</li>
+          <li><code>source: "network"</code> — device_connected / device_disconnected transitions detected between router ARP scans (debounced over ~30s of consecutive empty sweeps).</li>
+        </ul>
+        Sends an initial <code>stream_connected</code> snapshot (current presence state + last 20 events) on connect, then pushes frames as <code>event: &lt;type&gt;</code> + JSON <code>data</code>. Heartbeat comment every 25s.
+      </div>
+      <pre><code># Live stream (Node 18+ / any SSE client):
+curl -N http://localhost:3000/api/events/stream
+
+// Browser JS:
+const es = new EventSource('/api/events/stream');
+es.addEventListener('presence_detected', e => console.log(JSON.parse(e.data)));</code></pre>
+    </div>
+
+    <!-- Endpoint: /api/events -->
+    <div class="endpoint-card" style="border-color: rgba(59, 130, 246, 0.3);">
+      <div class="endpoint-header">
+        <div class="endpoint-title">
+          <span class="method method-get">GET</span>
+          <span>/api/events</span>
+          <span style="font-size: 0.75rem; background: rgba(59, 130, 246, 0.2); color: #93c5fd; padding: 2px 8px; border-radius: 4px;">New in v0.6.0</span>
+        </div>
+        <a href="/api/events" target="_blank" class="try-btn">Open Live Output ↗</a>
+      </div>
+      <div class="endpoint-desc">
+        Recent unified event history (last 200, newest first) from both the Shelly sensor and LAN device transitions — for clients that cannot hold a persistent SSE connection.
+      </div>
+      <pre><code>curl -s http://localhost:3000/api/events</code></pre>
+    </div>
+
     <!-- Endpoint: /api/scan -->
     <div class="endpoint-card">
       <div class="endpoint-header">

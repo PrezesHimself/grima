@@ -85,10 +85,20 @@ Minimal app-friendly presence feed from the Shelly mmWave sensor:
 - `numObjects`: Detected object count (0 = empty).
 - `zoneName`, `presentSince`, `updatedAt`, `online`, `device` (model), `ip`.
 
-### 8. `POST /api/scan`
+### 8. `GET /api/events/stream` (SSE)
+Live Server-Sent Events stream combining all Grima sources in real time:
+- **Shelly sensor events** (`source: "shelly"`): `presence_detected`, `presence_cleared`, `illuminance_changed`, `device_online`, `device_offline`, `track` — each with zone, object count, and device model.
+- **LAN device transitions** (`source: "network"`): `device_connected` / `device_disconnected` detected between router ARP scans (a device must be absent for ~30s of consecutive sweeps before a disconnect fires, debouncing ARP flapping). Payload includes ip, mac, name, vendor, deviceClass, medium.
+- On connect you immediately receive a `stream_connected` event with the current presence state and the 20 most recent events, so no state is missed. A comment-line heartbeat arrives every 25s.
+- Each SSE frame: `event: <type>` + `data: { ts, source, type, detail }` (JSON).
+
+### 9. `GET /api/events`
+Returns the last 200 published events (newest first) from both sources — for clients that cannot hold a persistent SSE connection.
+
+### 10. `POST /api/scan`
 Forces an immediate active ARP sweep and Wi-Fi scan, returning updated data.
 
-### 9. `GET /api/version`
+### 11. `GET /api/version`
 Returns Grima's semantic version and package metadata.
 
 ## What AI Agents & LLMs Can Build With Grima
@@ -109,4 +119,6 @@ Returns Grima's semantic version and package metadata.
    Analyze `/api/wifi` to find crowded Wi-Fi channels in the 2.4 GHz and 5 GHz bands and recommend less congested channels.
 8. **LAN vs ISP Latency Watchdog**:
    Compare `gatewayPingMs` against `internetPingMs` and `pingMs` to isolate network congestion.
+9. **Unified Home Activity Feed**:
+   Subscribe once to `GET /api/events/stream` (SSE) to get a single real-time feed of everything happening at home: mmWave room occupancy from the Shelly sensor *and* devices joining/leaving the LAN (new phones, TVs waking up, guests' devices). Correlate e.g. `device_connected` for a phone-class MAC with `presence_detected` to distinguish "person is home" from "phone just reconnected".
 
