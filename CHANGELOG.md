@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.5.0] - 2026-09-05
+
+### Changed
+- Shelly Presence Gen4 bridge: forwards mmWave occupancy, object count, and illuminance from the local Shelly sensor to Grima's API via 5s RPC polling + live WebSocket event channel. New endpoints GET /api/shelly (full state + event log) and GET /api/presence (lightweight occupancy feed for other apps); /api/status now includes a shelly block; sensor registered in device inventory.
+
 ## [0.4.0] - 2026-09-03
 
 ### Changed

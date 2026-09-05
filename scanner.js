@@ -73,6 +73,13 @@ class NetworkScanner {
       medium: 'Wi-Fi',
       vendor: 'Intel Corporate'
     });
+    this.deviceRegistry.set('58:e6:c5:0d:46:e0', {
+      ip: '192.168.1.102',
+      name: 'Shelly Presence Gen4 (mmWave sensor)',
+      type: 'IoT Sensor / Presence Detection',
+      medium: 'Wi-Fi',
+      vendor: 'AL-PRO (Shelly)'
+    });
   }
 
   lookupVendor(mac) {
@@ -223,7 +230,8 @@ class NetworkScanner {
     if (v.includes('APPLE')) return 'apple'; // needs SSH tiebreak
     if (v.includes('ESPRESSIF') || v.includes('TUYA') || v.includes('SONOFF') || v.includes('XIAOMI') ||
         v.includes('ITON TECH') || v.includes('RF-LINK') || v.includes('BLAUPUNKT') ||
-        v.includes('AMPAQUE') || v.includes('SMARTNIGHT') || v.includes('ATEME')) return 'iot';
+        v.includes('AMPAQUE') || v.includes('SMARTNIGHT') || v.includes('ATEME') ||
+        v.includes('AL-PRO') || v.includes('SHELLY')) return 'iot';
     return null;
   }
 

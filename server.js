@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const scanner = require('./scanner');
 const speedTester = require('./speedtest');
+const shelly = require('./shelly');
 const pkg = require('./package.json');
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -10,6 +11,9 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 // Start background periodic scanning (every 15s)
 scanner.startPeriodicScan(15000);
+
+// Start Shelly Presence bridge (poll + websocket event channel)
+shelly.start();
 
 function sendJson(res, statusCode, data, isHead = false) {
   const json = JSON.stringify(data, null, 2);
@@ -88,6 +92,7 @@ const server = http.createServer(async (req, res) => {
         description: 'Grima API documentation, OpenAPI 3.0 schema, and agent implementation guide for LLMs and clients.'
       },
       lastSpeedTest: speedTester.lastResult,
+      shelly: shelly.getPresenceSummary(),
       ...data
     }, isHead);
   }
@@ -114,6 +119,15 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/api/router' && (isGet || isHead)) {
     const data = scanner.cachedData || await scanner.scanAll();
     return sendJson(res, 200, data.router, isHead);
+  }
+
+  // --- Shelly Presence API Endpoints ---
+  if (pathname === '/api/shelly' && (isGet || isHead)) {
+    return sendJson(res, 200, shelly.getState(), isHead);
+  }
+
+  if (pathname === '/api/presence' && (isGet || isHead)) {
+    return sendJson(res, 200, shelly.getPresenceSummary(), isHead);
   }
 
   // --- Speed Test API Endpoints ---
@@ -170,6 +184,8 @@ const server = http.createServer(async (req, res) => {
       '/api/devices',
       '/api/wifi',
       '/api/router',
+      '/api/shelly',
+      '/api/presence',
       '/api/speedtest',
       '/api/version',
       '/api/scan'

@@ -14,6 +14,7 @@ Grima monitors your local network, tracks connected Wi-Fi and wired clients, que
 - **UPnP / SSDP Friendly Name Resolution**: Resolves device friendly names (e.g. "Pendrive Mi TV", "BlaupunktDMR").
 - **Wi-Fi Spectrum & Signal Monitoring**: Dual-band scanning (2.4 GHz & 5 GHz) showing signal %, dBm, channels, bitrates, and security.
 - **Router Gateway Telemetry**: Queries Mercusys / TP-Link router for WAN IP, router uptime, and connection state.
+- **Shelly Presence Bridge**: Forwards live data from the Shelly Presence Gen4 mmWave sensor (room occupancy + object count + ambient light) to Grima's API via 5s RPC polling plus a persistent WebSocket event channel — consumable by any app over LAN or Tailscale.
 - **Tailscale Integration**: Bound to `0.0.0.0`, accessible securely across your Tailnet from any authorized device.
 - **Web Dashboard**: Responsive dark-mode dashboard with live status cards and real-time auto-refresh.
 - **Systemd Autostart**: Runs as a persistent user service (`grima.service`) with user lingering enabled.
@@ -37,6 +38,8 @@ Grima monitors your local network, tracks connected Wi-Fi and wired clients, que
 | `/api/devices` | `GET` | Connected devices breakdown (count, IP, MAC, vendor, medium, latency) |
 | `/api/wifi` | `GET` | Wi-Fi spectrum and nearby networks |
 | `/api/router` | `GET` | Router WAN IP, uptime, model, and gateway status |
+| `/api/shelly` | `GET` | Full Shelly Presence Gen4 state: device identity, occupancy (`present`, `numObjects`), illuminance, zone config, event log |
+| `/api/presence` | `GET` | Lightweight room-occupancy feed from the Shelly mmWave sensor for other apps/automations |
 | `/api/speedtest` | `POST` | Run an on-demand internet speed test (ping, jitter, download, upload) via Cloudflare edge |
 | `/api/speedtest` | `GET` | Get the latest cached speed test result (runs one if none exists) |
 | `/api/version` | `GET` | Current Grima release version and metadata |

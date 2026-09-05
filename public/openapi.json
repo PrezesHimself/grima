@@ -121,6 +121,42 @@
         }
       }
     },
+    "/api/shelly": {
+      "get": {
+        "summary": "Get Shelly Presence sensor full state",
+        "description": "Returns the complete bridge state for the local Shelly Presence Gen4 mmWave sensor: device identity (model, MAC, firmware), online status, live presence zone state (detected + object count), ambient illuminance level, zone configuration, and a recent event log of state changes.",
+        "responses": {
+          "200": {
+            "description": "Shelly Presence bridge state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShellyResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/presence": {
+      "get": {
+        "summary": "Get lightweight room presence state",
+        "description": "Minimal, app-friendly endpoint exposing the live mmWave presence detection result from the Shelly Presence Gen4: whether someone is present in the monitored zone, how many objects are detected, and when the state last changed. Ideal for other apps and automations.",
+        "responses": {
+          "200": {
+            "description": "Presence summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresenceResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/version": {
       "get": {
         "summary": "Get Grima version and metadata",
@@ -177,6 +213,7 @@
           },
           "timestamp": { "type": "string", "format": "date-time" },
           "lastSpeedTest": { "$ref": "#/components/schemas/SpeedTestResult" },
+          "shelly": { "$ref": "#/components/schemas/PresenceResponse" },
           "summary": { "type": "object" },
           "devices": { "type": "array", "items": { "$ref": "#/components/schemas/Device" } },
           "wifi": { "$ref": "#/components/schemas/WifiResponse" },
@@ -261,6 +298,81 @@
           "uptimeFormatted": { "type": "string", "example": "12d 12h 33m" },
           "connectionStatus": { "type": "string", "example": "Connected" },
           "lastError": { "type": "string", "example": "ERROR_NONE" }
+        }
+      },
+      "PresenceResponse": {
+        "type": "object",
+        "description": "Live mmWave presence state from the Shelly Presence Gen4 sensor.",
+        "properties": {
+          "present": { "type": "boolean", "description": "True when a person/object is detected in the monitored zone.", "example": true },
+          "numObjects": { "type": "integer", "description": "Number of objects detected by the mmWave radar.", "example": 1 },
+          "zoneName": { "type": "string", "example": "Room" },
+          "presentSince": { "type": "string", "format": "date-time", "nullable": true, "description": "When presence last became true; null when nobody is present." },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "online": { "type": "boolean", "description": "Whether the Shelly device is reachable.", "example": true },
+          "device": { "type": "string", "nullable": true, "example": "S4SN-0U61X" },
+          "ip": { "type": "string", "example": "192.168.1.102" }
+        }
+      },
+      "ShellyResponse": {
+        "type": "object",
+        "description": "Full Shelly Presence bridge state including device identity, sensor data, and event log.",
+        "properties": {
+          "source": { "type": "string", "example": "shelly-presence" },
+          "device": {
+            "type": "object",
+            "properties": {
+              "ip": { "type": "string", "example": "192.168.1.102" },
+              "mac": { "type": "string", "example": "58E6C50D46E0" },
+              "model": { "type": "string", "example": "S4SN-0U61X" },
+              "gen": { "type": "integer", "example": 4 },
+              "firmware": { "type": "string", "example": "1.8.99-presenceg4prod1" },
+              "app": { "type": "string", "example": "PresenceG4" },
+              "matter": { "type": "boolean", "example": true }
+            }
+          },
+          "online": { "type": "boolean" },
+          "lastSeen": { "type": "string", "format": "date-time", "nullable": true },
+          "realtimeChannel": { "type": "string", "enum": ["websocket", "polling"], "description": "How fresh the data is: websocket when the live event channel is connected, otherwise polling." },
+          "presence": {
+            "type": "object",
+            "properties": {
+              "present": { "type": "boolean" },
+              "numObjects": { "type": "integer" },
+              "zoneId": { "type": ["integer", "null"] },
+              "zoneName": { "type": "string" },
+              "presentSince": { "type": "string", "format": "date-time", "nullable": true },
+              "updatedAt": { "type": "string", "format": "date-time", "nullable": true }
+            }
+          },
+          "illuminance": {
+            "type": "object",
+            "properties": {
+              "level": { "type": ["string", "null"], "enum": ["dark", "bright", null] },
+              "updatedAt": { "type": "string", "format": "date-time", "nullable": true }
+            }
+          },
+          "zoneConfig": {
+            "type": "object",
+            "properties": {
+              "zmin": { "type": ["number", "null"], "description": "Minimum monitored distance (m)" },
+              "zmax": { "type": ["number", "null"], "description": "Maximum monitored distance (m)" },
+              "sensitivity": { "type": ["string", "null"] },
+              "mainZone": { "type": ["string", "null"] }
+            }
+          },
+          "events": {
+            "type": "array",
+            "description": "Most recent state-change events, newest first (capped at 50 in API responses).",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ts": { "type": "string", "format": "date-time" },
+                "type": { "type": "string", "example": "presence_detected" },
+                "detail": { "type": "object" }
+              }
+            }
+          }
         }
       }
     }

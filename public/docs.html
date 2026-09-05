@@ -155,6 +155,38 @@ curl -s http://localhost:3000/api/speedtest</code></pre>
       <pre><code>curl -s http://localhost:3000/api/router</code></pre>
     </div>
 
+    <!-- Endpoint: /api/shelly -->
+    <div class="endpoint-card" style="border-color: rgba(59, 130, 246, 0.3);">
+      <div class="endpoint-header">
+        <div class="endpoint-title">
+          <span class="method method-get">GET</span>
+          <span>/api/shelly</span>
+          <span style="font-size: 0.75rem; background: rgba(59, 130, 246, 0.2); color: #93c5fd; padding: 2px 8px; border-radius: 4px;">New in v0.5.0</span>
+        </div>
+        <a href="/api/shelly" target="_blank" class="try-btn">Open Live Output ↗</a>
+      </div>
+      <div class="endpoint-desc">
+        Full state of the local <strong>Shelly Presence Gen4</strong> mmWave sensor, bridged by Grima: device identity (model, MAC, firmware), online status, live occupancy (<code>present</code>, <code>numObjects</code>), ambient illuminance (<code>dark</code>/<code>bright</code>), monitored zone config, and a recent event log. Data arrives via 5s RPC polling plus a persistent WebSocket event channel to the device for real-time transitions.
+      </div>
+      <pre><code>curl -s http://localhost:3000/api/shelly</code></pre>
+    </div>
+
+    <!-- Endpoint: /api/presence -->
+    <div class="endpoint-card" style="border-color: rgba(59, 130, 246, 0.3);">
+      <div class="endpoint-header">
+        <div class="endpoint-title">
+          <span class="method method-get">GET</span>
+          <span>/api/presence</span>
+          <span style="font-size: 0.75rem; background: rgba(59, 130, 246, 0.2); color: #93c5fd; padding: 2px 8px; border-radius: 4px;">New in v0.5.0</span>
+        </div>
+        <a href="/api/presence" target="_blank" class="try-btn">Open Live Output ↗</a>
+      </div>
+      <div class="endpoint-desc">
+        Minimal, app-friendly room-occupancy feed from the Shelly mmWave sensor — ideal for other apps and automations: <code>present</code> (boolean), <code>numObjects</code>, <code>zoneName</code>, <code>presentSince</code>, <code>updatedAt</code>, <code>online</code>, device model and IP.
+      </div>
+      <pre><code>curl -s http://localhost:3000/api/presence</code></pre>
+    </div>
+
     <!-- Endpoint: /api/scan -->
     <div class="endpoint-card">
       <div class="endpoint-header">

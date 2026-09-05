@@ -69,10 +69,26 @@ Returns router gateway telemetry (Mercusys AC12G via UPnP IGD):
 - `uptimeSeconds`: Time in seconds since router reboot
 - `uptimeFormatted`: Human-readable router uptime (e.g. `12d 12h 30m`)
 
-### 6. `POST /api/scan`
+### 6. `GET /api/shelly`
+Returns the full state of the local **Shelly Presence Gen4** mmWave sensor (bridged by Grima):
+- `device`: Identity — `ip`, `mac`, `model` (`S4SN-0U61X`), `gen`, `firmware`, `app`, Matter support.
+- `online`: Whether the device is reachable.
+- `realtimeChannel`: `"websocket"` when Grima's live event channel to the sensor is connected, otherwise `"polling"` (data is still fresh via 5s polling).
+- `presence`: Live detection — `present` (boolean), `numObjects` (mmWave object count), `zoneName`, `presentSince`, `updatedAt`.
+- `illuminance`: Ambient light level (`"dark"` / `"bright"`) with timestamp.
+- `zoneConfig`: Monitored range (`zmin`/`zmax` in meters) and sensitivity.
+- `events`: Recent state-change log, newest first (capped at 50), e.g. `presence_detected`, `presence_cleared`, `illuminance_changed`, `device_online/offline`.
+
+### 7. `GET /api/presence`
+Minimal app-friendly presence feed from the Shelly mmWave sensor:
+- `present`: Boolean — is someone in the room right now?
+- `numObjects`: Detected object count (0 = empty).
+- `zoneName`, `presentSince`, `updatedAt`, `online`, `device` (model), `ip`.
+
+### 8. `POST /api/scan`
 Forces an immediate active ARP sweep and Wi-Fi scan, returning updated data.
 
-### 7. `GET /api/version`
+### 9. `GET /api/version`
 Returns Grima's semantic version and package metadata.
 
 ## What AI Agents & LLMs Can Build With Grima
@@ -85,8 +101,12 @@ Returns Grima's semantic version and package metadata.
    Use `deviceClass` and `deviceClassCounts` to answer "is my phone home?" — e.g. alert when a `phone`-class device transitions from absent to `REACHABLE`, or track how many laptops are on the LAN.
 4. **Presence Detection / Home Automation**:
    Check when specific devices become active (`REACHABLE`) or drop to trigger smart home routines.
-5. **Wi-Fi Optimization & Channel Analyzer**:
+5. **True Room Presence (mmWave)**:
+   Poll `GET /api/presence` for hardware-grade occupancy: `{ present, numObjects, presentSince }` from the Shelly Presence Gen4 radar — no phone required, works through walls up to ~3 m range. Use `presentSince` to compute room occupancy duration, or watch `/api/shelly` events (`presence_detected` / `presence_cleared`) for transitions.
+6. **Ambient Light Context**:
+   Read `illuminance.level` from `/api/shelly` (`dark`/`bright`) to gate lighting or privacy automations.
+7. **Wi-Fi Optimization & Channel Analyzer**:
    Analyze `/api/wifi` to find crowded Wi-Fi channels in the 2.4 GHz and 5 GHz bands and recommend less congested channels.
-6. **LAN vs ISP Latency Watchdog**:
+8. **LAN vs ISP Latency Watchdog**:
    Compare `gatewayPingMs` against `internetPingMs` and `pingMs` to isolate network congestion.
 
