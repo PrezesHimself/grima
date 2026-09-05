@@ -131,6 +131,26 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, shelly.getPresenceSummary(), isHead);
   }
 
+  if (pathname === '/api/shelly/webhook' && req.method === 'POST') {
+    // Push receiver for the Shelly device webhook (illuminance measurement/change events)
+    let body = '';
+    req.on('data', (c) => {
+      body += c;
+      if (body.length > 100000) req.destroy(); // runaway guard
+    });
+    req.on('end', () => {
+      try {
+        const payload = JSON.parse(body || '{}');
+        shelly.applyWebhookEvent(payload);
+        sendJson(res, 200, { ok: true }, false);
+      } catch (e) {
+        sendJson(res, 400, { error: 'Invalid JSON payload' }, false);
+      }
+    });
+    req.on('error', () => { try { res.destroy(); } catch (e) {} });
+    return;
+  }
+
   // --- Unified Event Stream Endpoints ---
   if (pathname === '/api/events' && (isGet || isHead)) {
     const events = getHistory();

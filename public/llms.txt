@@ -113,8 +113,8 @@ Returns Grima's semantic version and package metadata.
    Check when specific devices become active (`REACHABLE`) or drop to trigger smart home routines.
 5. **True Room Presence (mmWave)**:
    Poll `GET /api/presence` for hardware-grade occupancy: `{ present, numObjects, presentSince }` from the Shelly Presence Gen4 radar — no phone required, works through walls up to ~3 m range. Use `presentSince` to compute room occupancy duration, or watch `/api/shelly` events (`presence_detected` / `presence_cleared`) for transitions.
-6. **Ambient Light Context**:
-   Read `illuminance.level` from `/api/shelly` (`dark`/`bright`) to gate lighting or privacy automations.
+6. **Ambient Light Context (real-time)**:
+   Read `illuminance.level` from `/api/shelly` (`dark`/`twilight`/`bright`) or watch `illuminance_changed` events on `/api/events/stream` — pushed live by the sensor's own webhooks — to gate lighting, privacy, or scene automations (e.g. "room is dark AND someone present → turn on light").
 7. **Wi-Fi Optimization & Channel Analyzer**:
    Analyze `/api/wifi` to find crowded Wi-Fi channels in the 2.4 GHz and 5 GHz bands and recommend less congested channels.
 8. **LAN vs ISP Latency Watchdog**:

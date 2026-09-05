@@ -157,10 +157,20 @@
         }
       }
     },
+    "/api/shelly/webhook": {
+      "post": {
+        "summary": "Shelly device webhook receiver (internal)",
+        "description": "Push endpoint registered on the Shelly device itself (Webhook.Create hooks for illuminance.measurement / illuminance.change). The sensor POSTs light-level events here in real time; Grima applies them to its state and re-broadcasts them on the event stream. Not meant for external callers.",
+        "responses": {
+          "200": { "description": "Event accepted" },
+          "400": { "description": "Invalid JSON payload" }
+        }
+      }
+    },
     "/api/events/stream": {
       "get": {
         "summary": "Live unified event stream (SSE)",
-        "description": "Server-Sent Events stream combining all Grima sources: Shelly sensor events (presence_detected, presence_cleared, illuminance_changed, device_online/offline) and LAN device transitions (device_connected, device_disconnected from router ARP scans). Sends an initial `connected` snapshot event with current presence state and recent history, then pushes events in real time. A comment-line heartbeat is sent every 25s to keep proxies alive.",
+        "description": "Server-Sent Events stream combining all Grima sources: Shelly sensor events (presence_detected, presence_cleared, illuminance_changed pushed in real time by device webhooks, device_online/offline) and LAN device transitions (device_connected, device_disconnected from router ARP scans). Sends an initial `connected` snapshot event with current presence state and recent history, then pushes events in real time. A comment-line heartbeat is sent every 25s to keep proxies alive.",
         "responses": {
           "200": {
             "description": "SSE stream",
@@ -412,8 +422,10 @@
           },
           "illuminance": {
             "type": "object",
+            "description": "Ambient light from the sensor's built-in illuminance sensor. Level is pushed in real time by a device webhook (illuminance.measurement / illuminance.change) and cross-checked by polling.",
             "properties": {
-              "level": { "type": ["string", "null"], "enum": ["dark", "bright", null] },
+              "level": { "type": ["string", "null"], "enum": ["dark", "twilight", "bright", null], "description": "Classified light level (device thresholds: dark < 10 lux, bright > 50 lux)." },
+              "lux": { "type": ["number", "null"], "nullable": true, "description": "Raw lux value when the device firmware reports it (not exposed by current Presence G4 firmware — always null for now)." },
               "updatedAt": { "type": "string", "format": "date-time", "nullable": true }
             }
           },

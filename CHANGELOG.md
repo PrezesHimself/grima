@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.8.0] - 2026-09-05
+
+### Changed
+- Real-time light telemetry from Shelly Presence: registered illuminance.measurement + illuminance.change webhooks directly on the device (Webhook.Create/Update via its RPC), pushing light-level changes (dark/twilight/bright) into Grima in real time via new POST /api/shelly/webhook receiver. Illuminance state now tracks 3 levels + optional raw lux field; events flow to SSE stream, /api/events history, and dashboard feed.
+
 ## [0.7.0] - 2026-09-05
 
 ### Changed

@@ -38,9 +38,10 @@ class ShellyPresenceBridge {
       updatedAt: null
     };
 
-    // Ambient light (from illuminance component)
+    // Ambient light (from illuminance component + device webhooks)
     this.illuminance = {
-      level: null,          // 'dark' | 'bright'
+      level: null,          // 'dark' | 'twilight' | 'bright'
+      lux: null,            // raw lux value when the device reports it
       updatedAt: null
     };
 
@@ -185,11 +186,45 @@ class ShellyPresenceBridge {
       const prev = this.illuminance.level;
       this.illuminance.level = status.illumination;
       this.illuminance.updatedAt = new Date().toISOString();
-      this.recordEvent('illuminance_changed', { from: prev, to: status.illumination });
+      this.recordEvent('illuminance_changed', { from: prev, to: status.illumination, lux: this.illuminance.lux });
     } else if (status.illumination && !this.illuminance.updatedAt) {
       this.illuminance.level = status.illumination;
       this.illuminance.updatedAt = new Date().toISOString();
     }
+  }
+
+  /**
+   * Apply a push event received from the Shelly device webhook
+   * (POST /api/shelly/webhook). Handles illuminance measurement/change
+   * events, which may carry a raw lux value in addition to the level.
+   */
+  applyWebhookEvent(payload) {
+    if (!payload || typeof payload !== 'object') return false;
+    const evt = payload.event || payload.name || '';
+
+    if (evt.startsWith('illuminance')) {
+      const level = payload.illumination || null;
+      const lux = Number.isFinite(payload.lux) ? payload.lux : null;
+      const now = new Date().toISOString();
+
+      if (lux !== null) this.illuminance.lux = lux;
+      if (level && level !== this.illuminance.level) {
+        const prev = this.illuminance.level;
+        this.illuminance.level = level;
+        this.illuminance.updatedAt = now;
+        this.recordEvent('illuminance_changed', { from: prev, to: level, lux });
+      } else if (lux !== null) {
+        // Same level but fresh measurement — refresh timestamp + lux
+        this.illuminance.updatedAt = now;
+        this.recordEvent('illuminance_measurement', { level, lux });
+      }
+      return true;
+    }
+
+    // Unknown event type from the device — log it so we can extend support
+    const raw = JSON.stringify(payload);
+    this.recordEvent('webhook_event', { event: evt || 'unknown', payload: raw.length > 300 ? raw.slice(0, 300) + '…' : raw });
+    return true;
   }
 
   _markOffline() {

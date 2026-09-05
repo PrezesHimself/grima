@@ -15,7 +15,8 @@ Grima monitors your local network, tracks connected Wi-Fi and wired clients, que
 - **Wi-Fi Spectrum & Signal Monitoring**: Dual-band scanning (2.4 GHz & 5 GHz) showing signal %, dBm, channels, bitrates, and security.
 - **Router Gateway Telemetry**: Queries Mercusys / TP-Link router for WAN IP, router uptime, and connection state.
 - **Shelly Presence Bridge**: Forwards live data from the Shelly Presence Gen4 mmWave sensor (room occupancy + object count + ambient light) to Grima's API via 5s RPC polling plus a persistent WebSocket event channel — consumable by any app over LAN or Tailscale.
-- **Unified Event Stream (SSE)**: Real-time push feed combining Shelly sensor events (presence detected/cleared, illuminance changes) with LAN device connect/disconnect transitions from router ARP scans — `GET /api/events/stream` for live SSE, `GET /api/events` for recent history.
+- **Unified Event Stream (SSE)**: Real-time push feed combining Shelly sensor events (presence detected/cleared, illuminance changes pushed by device webhooks) with LAN device connect/disconnect transitions from router ARP scans — `GET /api/events/stream` for live SSE, `GET /api/events` for recent history.
+- **Real-Time Light Telemetry**: The Shelly's own illuminance webhooks (`illuminance.measurement` / `illuminance.change`) are registered on the device and push light-level changes (dark/twilight/bright) straight into Grima — no polling latency.
 - **Tailscale Integration**: Bound to `0.0.0.0`, accessible securely across your Tailnet from any authorized device.
 - **Web Dashboard**: Responsive dark-mode dashboard with live status cards and real-time auto-refresh.
 - **Systemd Autostart**: Runs as a persistent user service (`grima.service`) with user lingering enabled.
@@ -43,6 +44,7 @@ Grima monitors your local network, tracks connected Wi-Fi and wired clients, que
 | `/api/presence` | `GET` | Lightweight room-occupancy feed from the Shelly mmWave sensor for other apps/automations |
 | `/api/events/stream` | `GET` | Live SSE event stream: Shelly presence/illuminance events + LAN device connected/disconnected transitions, with initial state snapshot and 25s heartbeats |
 | `/api/events` | `GET` | Recent unified event history (last 200, newest first) for clients that can't hold a persistent connection |
+| `/api/shelly/webhook` | `POST` | Internal push receiver — the Shelly device's illuminance webhooks POST light-level events here in real time |
 | `/api/speedtest` | `POST` | Run an on-demand internet speed test (ping, jitter, download, upload) via Cloudflare edge |
 | `/api/speedtest` | `GET` | Get the latest cached speed test result (runs one if none exists) |
 | `/api/version` | `GET` | Current Grima release version and metadata |
