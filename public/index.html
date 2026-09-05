@@ -267,6 +267,48 @@
     .meter-fill.medium { background: var(--warning); }
     .meter-fill.weak { background: var(--danger); }
 
+    /* Presence card */
+    .card.presence-active {
+      border-color: rgba(16, 185, 129, 0.45);
+      box-shadow: 0 0 18px rgba(16, 185, 129, 0.12);
+    }
+
+    /* Live event feed */
+    .event-feed {
+      max-height: 320px;
+      overflow-y: auto;
+    }
+
+    .event-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      padding: 8px 4px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      font-size: 0.86rem;
+    }
+
+    .event-row:last-child { border-bottom: none; }
+
+    .event-time {
+      color: var(--text-muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.78rem;
+      min-width: 64px;
+    }
+
+    .event-type { min-width: 150px; }
+
+    .event-detail {
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .badge-shelly { background: rgba(147, 51, 234, 0.15); color: #c084fc; }
+    .badge-network { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+
     .footer {
       display: flex;
       justify-content: space-between;
@@ -360,6 +402,16 @@
         <div class="card-val" id="ping-val">-- <span style="font-size: 1rem; font-weight: normal; color: var(--text-muted);">ms</span></div>
         <div class="card-sub" id="ping-sub">Gateway: -- ms · Internet: -- ms</div>
       </div>
+
+      <!-- Card 6: Room Presence (Shelly mmWave) -->
+      <div class="card" id="presence-card">
+        <div class="card-title">
+          <span>Room Presence (mmWave)</span>
+          <span class="badge badge-warning" id="presence-badge">Waiting…</span>
+        </div>
+        <div class="card-val" id="presence-val">--</div>
+        <div class="card-sub" id="presence-sub">Connecting to Shelly sensor…</div>
+      </div>
     </div>
 
     <!-- Section: Connected Devices -->
@@ -386,6 +438,20 @@
             <tr><td colspan="8" style="text-align: center; color: var(--text-muted); padding: 24px;">Loading active devices...</td></tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- Section: Live Event Stream (SSE) -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Live Event Stream — Sensor + Network Activity</div>
+        <span class="badge badge-warning" id="stream-badge">Connecting…</span>
+      </div>
+      <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 12px;">
+        Real-time feed via SSE (<code>/api/events/stream</code>): Shelly mmWave presence events + devices joining/leaving the LAN.
+      </p>
+      <div class="event-feed" id="event-feed">
+        <div class="event-row" id="event-feed-placeholder"><span class="event-detail">Waiting for events…</span></div>
       </div>
     </div>
 
@@ -446,6 +512,9 @@
         <a href="/api/status" target="_blank">/api/status</a>
         <a href="/api/devices" target="_blank">/api/devices</a>
         <a href="/api/wifi" target="_blank">/api/wifi</a>
+        <a href="/api/shelly" target="_blank">/api/shelly</a>
+        <a href="/api/presence" target="_blank">/api/presence</a>
+        <a href="/api/events/stream" target="_blank">/api/events/stream</a>
       </div>
     </div>
   </div>
@@ -643,6 +712,9 @@
         `;
       }).join('');
 
+      // Shelly Presence (from /api/status shelly block — SSE also updates this live)
+      if (data.shelly) renderPresence(data.shelly);
+
       // Host Stats
       document.getElementById('host-name').textContent = host.hostname || '--';
       document.getElementById('host-uptime').textContent = host.uptimeFormatted || '--';
@@ -656,8 +728,100 @@
       return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
+    // --- Shelly Presence card ---
+    function renderPresence(p) {
+      if (!p) return;
+      const card = document.getElementById('presence-card');
+      const val = document.getElementById('presence-val');
+      const sub = document.getElementById('presence-sub');
+      const badge = document.getElementById('presence-badge');
+
+      if (p.present) {
+        val.innerHTML = '👤 <span style="color: var(--success);">Present</span>';
+        card.classList.add('presence-active');
+        sub.textContent = `${p.numObjects || 0} object(s) · ${p.zoneName || 'Room'} · since ${p.presentSince ? new Date(p.presentSince).toLocaleTimeString() : '--'}`;
+      } else {
+        val.innerHTML = '<span style="color: var(--text-muted);">Empty</span>';
+        card.classList.remove('presence-active');
+        sub.textContent = `No motion in ${p.zoneName || 'Room'} · Shelly ${p.device || ''}`;
+      }
+      badge.textContent = p.online ? 'Sensor Online' : 'Sensor Offline';
+      badge.className = 'badge ' + (p.online ? 'badge-success' : 'badge-warning');
+    }
+
+    async function refreshPresence() {
+      try {
+        const res = await fetch('/api/presence');
+        renderPresence(await res.json());
+      } catch (e) { /* keep last known state */ }
+    }
+
+    // --- Live event stream (SSE) ---
+    const EVENT_TYPES = [
+      'stream_connected', 'presence_detected', 'presence_cleared', 'illuminance_changed',
+      'device_online', 'device_offline', 'track', 'ws_connected', 'ws_disconnected',
+      'device_connected', 'device_disconnected'
+    ];
+    const MAX_FEED_ROWS = 40;
+
+    function eventDetailText(evt) {
+      const d = evt.detail || {};
+      switch (evt.type) {
+        case 'presence_detected': return `${d.zone || ''} · ${d.numObjects ?? '?'} object(s)`;
+        case 'presence_cleared': return d.zone || '';
+        case 'illuminance_changed': return `${d.from || '—'} → ${d.to}`;
+        case 'device_connected': return `${d.name || ''} (${d.ip})`;
+        case 'device_disconnected': return `${d.name || ''} (${d.ip}) · missed ${d.missedScans ?? '?'} scans`;
+        case 'device_online': return d.ip;
+        case 'device_offline': return d.ip;
+        case 'track': return `${d.objects ?? 0} object(s) tracked`;
+        default: return JSON.stringify(d).slice(0, 80);
+      }
+    }
+
+    function addEventToFeed(evt) {
+      const feed = document.getElementById('event-feed');
+      const placeholder = document.getElementById('event-feed-placeholder');
+      if (placeholder) placeholder.remove();
+
+      const row = document.createElement('div');
+      row.className = 'event-row';
+      const time = new Date(evt.ts).toLocaleTimeString();
+      const srcBadge = evt.source === 'shelly'
+        ? '<span class="badge badge-shelly">shelly</span>'
+        : (evt.source === 'network' ? '<span class="badge badge-network">network</span>' : '<span class="badge">grima</span>');
+      row.innerHTML = `<span class="event-time">${time}</span>${srcBadge}<strong class="event-type">${escapeHtml(evt.type)}</strong><span class="event-detail" title="${escapeHtml(JSON.stringify(evt.detail || {}))}">${escapeHtml(eventDetailText(evt))}</span>`;
+      feed.prepend(row);
+      while (feed.children.length > MAX_FEED_ROWS) feed.removeChild(feed.lastChild);
+    }
+
+    function connectEventStream() {
+      if (typeof EventSource === 'undefined') return;
+      const es = new EventSource('/api/events/stream');
+      const streamBadge = document.getElementById('stream-badge');
+
+      es.onopen = () => { streamBadge.textContent = 'LIVE'; streamBadge.className = 'badge badge-success'; };
+      es.onerror = () => { streamBadge.textContent = 'Reconnecting…'; streamBadge.className = 'badge badge-warning'; };
+
+      for (const t of EVENT_TYPES) {
+        es.addEventListener(t, (e) => {
+          let evt;
+          try { evt = JSON.parse(e.data); } catch (err) { return; }
+          if (t === 'stream_connected') {
+            // Seed the feed with recent history + current presence state
+            (evt.detail.recentEvents || []).slice().reverse().forEach(ev => addEventToFeed(ev));
+            if (evt.detail.presence) renderPresence(evt.detail.presence);
+            return;
+          }
+          addEventToFeed(evt);
+          if (t.startsWith('presence_') || t === 'illuminance_changed') refreshPresence();
+        });
+      }
+    }
+
     fetchStatus();
     startTimer();
+    connectEventStream();
   </script>
 </body>
 </html>

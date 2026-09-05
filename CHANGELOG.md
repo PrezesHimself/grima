@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.7.0] - 2026-09-05
+
+### Changed
+- Dashboard UI for Shelly + event stream: new Room Presence metric card (live mmWave occupancy with sensor online/offline state, green glow when occupied) and Live Event Stream section rendering the SSE feed in real time (shelly + network events, color-coded source badges, 40-row rolling window, seeded from stream snapshot on connect). Footer links to /api/shelly, /api/presence, /api/events/stream.
+
 ## [0.6.0] - 2026-09-05
 
 ### Changed
