@@ -63,8 +63,8 @@ class NetworkScanner {
     }
 
     // High fidelity known overrides for local network
-    this.ouiMap.set('088AF1', 'Mercusys / TP-Link Technologies');
-    this.ouiMap.set('0A8AF1', 'Mercusys / TP-Link Technologies');
+    this.ouiMap.set('088AF1', 'Gateway');
+    this.ouiMap.set('0A8AF1', 'Gateway');
     this.ouiMap.set('703E97', 'Xiaomi (Iton Tech)');
     this.ouiMap.set('CC79CF', 'Blaupunkt (Shenzhen RF-Link)');
     this.ouiMap.set('F8AC65', 'Intel Corporate');
@@ -73,10 +73,10 @@ class NetworkScanner {
   seedKnownDevices() {
     this.deviceRegistry.set('08:8a:f1:5e:5d:bc', {
       ip: GATEWAY_IP,
-      name: 'Mercusys AC12G Dual Band Router',
+      name: 'Network Gateway',
       type: 'Router / Gateway',
       medium: 'Router / AP',
-      vendor: 'Mercusys / TP-Link Technologies'
+      vendor: 'Gateway'
     });
     this.deviceRegistry.set('70:3e:97:7e:e6:e2', {
       ip: '192.168.1.102',
@@ -378,7 +378,7 @@ class NetworkScanner {
       }
 
       return {
-        model: 'MERCUSYS AC12G AC1300 Wireless Dual Band Gigabit Router',
+        model: 'Network Gateway',
         gatewayIp: GATEWAY_IP,
         externalIp: ipMatch ? ipMatch[1] : 'Unknown',
         uptimeSeconds: uptimeSec,
@@ -388,7 +388,7 @@ class NetworkScanner {
       };
     } catch (e) {
       return {
-        model: 'MERCUSYS AC12G',
+        model: 'Network Gateway',
         gatewayIp: GATEWAY_IP,
         externalIp: 'Unavailable',
         uptimeFormatted: 'Unknown',
@@ -502,7 +502,13 @@ class NetworkScanner {
       }
     }
 
-    const thisHostMac = await this.execCommand('cat /sys/class/net/enp1s0/address');
+    const routeOut = cp.execSync('ip route show default', {stdio: 'pipe'}).toString();
+    const ifaceMatch = routeOut.match(/dev (\S+)/);
+    let thisHostMac = 'unknown';
+    if (ifaceMatch) {
+      const macMatch = cp.execSync(`ip link show ${ifaceMatch[1]}`, {stdio: 'pipe'}).toString().match(/link\/ether ([\w:]+)/);
+      if (macMatch) thisHostMac = macMatch[1];
+    }
     const thisHostIp = HOST_IP;
 
     const devices = [];
@@ -510,10 +516,10 @@ class NetworkScanner {
     devices.push({
       ip: thisHostIp,
       mac: thisHostMac ? thisHostMac.toLowerCase() : 'unknown',
-      name: 'mr-Wyse-5070-Thin-Client (This Device)',
-      vendor: 'Dell Inc. / Wyse',
+      name: require('os').hostname() + ' (This Device)',
+      vendor: 'Local Host',
       type: 'Server / Host Machine',
-      medium: 'Wired Ethernet (enp1s0)',
+      medium: 'Local Network Interface',
       latencyMs: 0.05,
       state: 'LOCAL',
       isLocalHost: true,
@@ -523,7 +529,8 @@ class NetworkScanner {
       classReason: 'Grima host machine'
     });
 
-    const routerMac = '08:8a:f1:5e:5d:bc';
+    let routerMac = 'unknown';
+    try { const gwMacMatch = cp.execSync(`ip neigh show ${GATEWAY_IP}`, {stdio: 'pipe'}).toString().match(/lladdr ([\w:]+)/); if (gwMacMatch) routerMac = gwMacMatch[1].toLowerCase(); } catch (e) {}
     if (!activeMap.has(routerMac)) {
       activeMap.set(routerMac, { ip: GATEWAY_IP, mac: routerMac, state: 'REACHABLE' });
     }
@@ -536,7 +543,7 @@ class NetworkScanner {
 
       const registered = this.deviceRegistry.get(mac);
       const vendor = registered?.vendor || this.lookupVendor(mac);
-      const name = registered?.name || (info.ip === GATEWAY_IP ? 'Mercusys AC12G Router' : `${vendor} Device`);
+      const name = registered?.name || (info.ip === GATEWAY_IP ? 'Network Gateway' : `${vendor} Device`);
       const type = registered?.type || (info.ip === GATEWAY_IP ? 'Router / Gateway' : 'Network Client');
       const medium = registered?.medium || (info.ip === GATEWAY_IP ? 'Router / AP' : 'Wi-Fi');
 

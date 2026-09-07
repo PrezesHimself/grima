@@ -16,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.8.5] - 2026-09-07
+
+### Changed
+- Refactor scanner.js to dynamically detect local hostname and network interfaces instead of hardcoding Wyse and Mercusys
+
 ## [0.8.4] - 2026-09-07
 
 ### Changed
