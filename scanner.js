@@ -696,8 +696,8 @@ class NetworkScanner {
           internetPingMs: inetPing
         },
         wifi: {
-          interface: 'wlp0s12f0',
-          state: 'Hardware Available (Dual-band)',
+          interface: os.release().toLowerCase().includes('microsoft') ? 'Virtual Ethernet (vEthernet)' : 'wlp0s12f0',
+          state: os.release().toLowerCase().includes('microsoft') ? 'Unsupported in WSL (Virtual Network)' : 'Hardware Available (Dual-band)',
           localAccessPoints: localAps,
           allVisibleNetworks: wifiNetworks
         },

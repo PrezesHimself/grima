@@ -630,12 +630,13 @@
       document.getElementById('total-clients-val').textContent = summary.connectedClientsCount ?? devices.length;
       document.getElementById('clients-sub').textContent = `${summary.wifiClientsCount || 0} Wi-Fi · ${summary.wiredClientsCount || 0} Wired`;
 
-      document.getElementById('primary-ssid-val').textContent = summary.primaryWifiSsid || 'Unknown Network';
+      document.getElementById('primary-ssid-val').textContent = wifi.state.includes('WSL') ? 'Virtual Ethernet' : (summary.primaryWifiSsid || 'Unknown Network');
+      if (wifi.state.includes('WSL')) document.getElementById('wifi-band-badge').textContent = 'WSL V-Switch';
       const localAp = wifi.localAccessPoints?.[0];
       if (localAp) {
         document.getElementById('wifi-details-sub').textContent = `Signal: ${localAp.signalPercent}% (${localAp.signalDbm} dBm) · Ch ${localAp.channel}`;
       } else {
-        document.getElementById('wifi-details-sub').textContent = 'Dual Band (2.4 & 5 GHz)';
+        document.getElementById('wifi-details-sub').textContent = wifi.state.includes('WSL') ? 'Wi-Fi Scanning Unsupported (WSL)' : 'No signal data available';
       }
 
       document.getElementById('gateway-ip-val').textContent = router.gatewayIp || '192.168.1.1';

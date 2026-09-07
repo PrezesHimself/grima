@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.8.6] - 2026-09-07
+
+### Changed
+- Handle WSL environment edge cases by explicitly noting Wi-Fi scanning limitations in the UI instead of falling back to hardcoded Wi-Fi states
+
 ## [0.8.5] - 2026-09-07
 
 ### Changed
