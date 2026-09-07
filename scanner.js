@@ -20,12 +20,13 @@ try {
     }
   } else {
     const routeOut = cp.execSync('ip -4 route show default', {stdio: 'pipe'}).toString();
-  const gwMatch = routeOut.match(/default via (\d+\.\d+\.\d+\.\d+)/);
-  if (gwMatch) GATEWAY_IP = gwMatch[1];
+    const gwMatch = routeOut.match(/default via (\d+\.\d+\.\d+\.\d+)/);
+    if (gwMatch) GATEWAY_IP = gwMatch[1];
   
-  const ipOut = cp.execSync('ip -o -4 route get 1.1.1.1', {stdio: 'pipe'}).toString();
-  const hostMatch = ipOut.match(/src (\d+\.\d+\.\d+\.\d+)/);
-  if (hostMatch) HOST_IP = hostMatch[1];
+    const ipOut = cp.execSync('ip -o -4 route get 1.1.1.1', {stdio: 'pipe'}).toString();
+    const hostMatch = ipOut.match(/src (\d+\.\d+\.\d+\.\d+)/);
+    if (hostMatch) HOST_IP = hostMatch[1];
+  }
 } catch (e) {}
 
 const SUBNET_BASE = GATEWAY_IP.substring(0, GATEWAY_IP.lastIndexOf('.'));
@@ -420,6 +421,13 @@ class NetworkScanner {
     const networks = [];
     try {
       if (os.platform() === 'win32') {
+        let connectedBssid = '';
+        try {
+          const ifaceOut = await this.execCommand('netsh wlan show interfaces');
+          const apMatch = ifaceOut.match(/AP BSSID\s*:\s*([0-9a-fA-F:-]+)/i) || ifaceOut.match(/BSSID\s*:\s*([0-9a-fA-F:-]+)/i);
+          if (apMatch) connectedBssid = apMatch[1].replace(/-/g, ':').toLowerCase();
+        } catch (e) {}
+
         const raw = await this.execCommand('netsh wlan show networks mode=Bssid');
         if (!raw) return [];
         let currentSsid = '';
@@ -445,16 +453,18 @@ class NetworkScanner {
             }
           }
           if (bssid) {
+            const cleanBssid = bssid.replace(/-/g, ':').toLowerCase();
+            const isLocalAp = connectedBssid ? (cleanBssid === connectedBssid) : false;
             networks.push({
               ssid: currentSsid,
-              bssid: bssid.replace(/-/g, ':').toLowerCase(),
+              bssid: cleanBssid,
               channel,
               frequency: freq,
               signalPercent: signal,
               signalDbm: Math.round((signal / 100) * 50 - 100),
               security,
               maxBitrate: rate,
-              isLocalAp: false
+              isLocalAp
             });
           }
         }
@@ -488,6 +498,13 @@ class NetworkScanner {
         }
       }
     } catch (e) {}
+
+    networks.sort((a, b) => {
+      if (a.isLocalAp && !b.isLocalAp) return -1;
+      if (!a.isLocalAp && b.isLocalAp) return 1;
+      return b.signalPercent - a.signalPercent;
+    });
+
     return networks;
   }
 
@@ -510,60 +527,79 @@ class NetworkScanner {
     const mdnsPromise = this.discoverMdns(); // runs in parallel with the sweep below
     await this.sweepSubnet();
 
-    const [neighRaw, arpRaw] = await Promise.all([
-      this.execCommand('ip neigh show dev enp1s0'),
-      this.execCommand('cat /proc/net/arp')
-    ]);
-
     const activeMap = new Map();
 
-    if (neighRaw) {
-      for (const line of neighRaw.split('\n')) {
-        if (!line.includes('lladdr') || line.includes('FAILED')) continue;
-        const parts = line.trim().split(/\s+/);
-        if (parts.length >= 4) {
-          const ip = parts[0];
-          const mac = parts[2].toLowerCase();
-          const state = parts[3];
-          activeMap.set(mac, { ip, mac, state });
+    if (os.platform() === 'win32') {
+      const arpRaw = await this.execCommand('arp -a');
+      if (arpRaw) {
+        for (const line of arpRaw.split(/\r?\n/)) {
+          const match = line.trim().match(/^(\d+\.\d+\.\d+\.\d+)\s+([0-9a-fA-F]{2}-[0-9a-fA-F]{2}-[0-9a-fA-F]{2}-[0-9a-fA-F]{2}-[0-9a-fA-F]{2}-[0-9a-fA-F]{2})\s+(\w+)/);
+          if (match) {
+            const ip = match[1];
+            const mac = match[2].replace(/-/g, ':').toLowerCase();
+            if (mac !== 'ff:ff:ff:ff:ff:ff' && !ip.startsWith('224.') && !ip.startsWith('239.') && !ip.endsWith('.255')) {
+              activeMap.set(mac, { ip, mac, state: 'REACHABLE' });
+            }
+          }
         }
       }
-    }
+    } else {
+      const [neighRaw, arpRaw] = await Promise.all([
+        this.execCommand('ip neigh show dev enp1s0'),
+        this.execCommand('cat /proc/net/arp')
+      ]);
 
-    if (arpRaw) {
-      for (const line of arpRaw.split('\n').slice(1)) {
-        const parts = line.trim().split(/\s+/);
-        if (parts.length >= 6) {
-          const ip = parts[0];
-          const flags = parts[2];
-          const mac = parts[3].toLowerCase();
-          if (flags !== '0x0' && mac !== '00:00:00:00:00:00') {
-            if (!activeMap.has(mac)) {
-              activeMap.set(mac, { ip, mac, state: 'REACHABLE' });
+      if (neighRaw) {
+        for (const line of neighRaw.split('\n')) {
+          if (!line.includes('lladdr') || line.includes('FAILED')) continue;
+          const parts = line.trim().split(/\s+/);
+          if (parts.length >= 4) {
+            const ip = parts[0];
+            const mac = parts[2].toLowerCase();
+            const state = parts[3];
+            activeMap.set(mac, { ip, mac, state });
+          }
+        }
+      }
+
+      if (arpRaw) {
+        for (const line of arpRaw.split('\n').slice(1)) {
+          const parts = line.trim().split(/\s+/);
+          if (parts.length >= 6) {
+            const ip = parts[0];
+            const flags = parts[2];
+            const mac = parts[3].toLowerCase();
+            if (flags !== '0x0' && mac !== '00:00:00:00:00:00') {
+              if (!activeMap.has(mac)) {
+                activeMap.set(mac, { ip, mac, state: 'REACHABLE' });
+              }
             }
           }
         }
       }
     }
 
-    const routeOut = cp.execSync('ip route show default', {stdio: 'pipe'}).toString();
-    const ifaceMatch = routeOut.match(/dev (\S+)/);
     let thisHostMac = 'unknown';
     if (os.platform() === 'win32') {
       try {
-        const getmacOut = cp.execSync('getmac /NH /V /FO CSV', {stdio: 'pipe'}).toString();
-        const lines = getmacOut.split('\n');
-        for (const line of lines) {
-          if (line.includes('Disconnected') || line.includes('N/A')) continue;
-          const match = line.match(/"[^"]+","[^"]+","([^"]+)"/);
-          if (match) { thisHostMac = match[1].replace(/-/g, ':').toLowerCase(); break; }
+        const ifaces = os.networkInterfaces();
+        for (const [name, addrs] of Object.entries(ifaces)) {
+          const match = addrs.find(a => a.address === HOST_IP);
+          if (match && match.mac && match.mac !== '00:00:00:00:00:00') {
+            thisHostMac = match.mac.toLowerCase();
+            break;
+          }
         }
       } catch (e) {}
     } else {
-      if (ifaceMatch) {
-        const macMatch = cp.execSync(`ip link show ${ifaceMatch[1]}`, {stdio: 'pipe'}).toString().match(/link\/ether ([\w:]+)/);
-        if (macMatch) thisHostMac = macMatch[1];
-      }
+      try {
+        const routeOut = cp.execSync('ip route show default', {stdio: 'pipe'}).toString();
+        const ifaceMatch = routeOut.match(/dev (\S+)/);
+        if (ifaceMatch) {
+          const macMatch = cp.execSync(`ip link show ${ifaceMatch[1]}`, {stdio: 'pipe'}).toString().match(/link\/ether ([\w:]+)/);
+          if (macMatch) thisHostMac = macMatch[1];
+        }
+      } catch (e) {}
     }
     const thisHostIp = HOST_IP;
 
@@ -660,13 +696,24 @@ class NetworkScanner {
 
   async getInterfaceStats() {
     try {
+      if (os.platform() === 'win32') {
+        return {
+          interface: 'Wi-Fi',
+          ip: `${HOST_IP}/24`,
+          speedMbps: 1000,
+          rxBytes: 0,
+          txBytes: 0,
+          rxMb: '0.00',
+          txMb: '0.00'
+        };
+      }
       const rxBytes = parseInt(fs.readFileSync('/sys/class/net/enp1s0/statistics/rx_bytes', 'utf-8').trim(), 10);
       const txBytes = parseInt(fs.readFileSync('/sys/class/net/enp1s0/statistics/tx_bytes', 'utf-8').trim(), 10);
       const speed = fs.readFileSync('/sys/class/net/enp1s0/speed', 'utf-8').trim();
 
       return {
         interface: 'enp1s0',
-        ip: `\${HOST_IP}/24`,
+        ip: `${HOST_IP}/24`,
         speedMbps: speed ? parseInt(speed, 10) : 1000,
         rxBytes,
         txBytes,
@@ -681,14 +728,25 @@ class NetworkScanner {
   getTailscaleInfo() {
     try {
       const ifaces = os.networkInterfaces();
-      const tsIface = ifaces['tailscale0']?.find(a => a.family === 'IPv4');
+      let tsIface = ifaces['tailscale0']?.find(a => a.family === 'IPv4' || a.family === 4);
+      if (!tsIface && ifaces['Tailscale']) {
+        tsIface = ifaces['Tailscale']?.find(a => a.family === 'IPv4' || a.family === 4);
+      }
+      if (!tsIface) {
+        for (const [name, addrs] of Object.entries(ifaces)) {
+          if (name.toLowerCase().includes('tailscale')) {
+            tsIface = addrs.find(a => a.family === 'IPv4' || a.family === 4);
+            if (tsIface) break;
+          }
+        }
+      }
       return {
-        ip: tsIface ? tsIface.address : '100.86.96.26',
+        ip: tsIface ? tsIface.address : '100.97.102.28',
         active: !!tsIface,
-        hostname: 'mr-wyse-5070-thin-client'
+        hostname: os.hostname()
       };
     } catch (e) {
-      return { ip: '100.86.96.26', active: true, hostname: 'mr-wyse-5070-thin-client' };
+      return { ip: '100.97.102.28', active: true, hostname: os.hostname() };
     }
   }
 
@@ -761,8 +819,8 @@ class NetworkScanner {
           internetPingMs: inetPing
         },
         wifi: {
-          interface: os.release().toLowerCase().includes('microsoft') ? 'Virtual Ethernet (vEthernet)' : 'wlp0s12f0',
-          state: os.release().toLowerCase().includes('microsoft') ? 'Unsupported in WSL (Virtual Network)' : 'Hardware Available (Dual-band)',
+          interface: os.platform() === 'win32' ? 'Wi-Fi (Realtek 8922AE)' : (os.release().toLowerCase().includes('microsoft') ? 'Virtual Ethernet (vEthernet)' : 'wlp0s12f0'),
+          state: os.platform() === 'win32' ? 'Hardware Available (Dual-band / Wi-Fi 7)' : (os.release().toLowerCase().includes('microsoft') ? 'Unsupported in WSL (Virtual Network)' : 'Hardware Available (Dual-band)'),
           localAccessPoints: localAps,
           allVisibleNetworks: wifiNetworks
         },

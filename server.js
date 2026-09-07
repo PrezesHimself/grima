@@ -14,7 +14,7 @@ const shellies = (config.shellySensors || []).map(c => new ShellyPresenceBridge(
 const { bus, getHistory } = require('./events');
 const pkg = require('./package.json');
 
-const PORT = parseInt(process.env.PORT || '3000', 10);
+const PORT = parseInt(process.env.PORT || '4981', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 
 // Start background periodic scanning (every 15s)
