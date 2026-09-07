@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.8.8] - 2026-09-07
+
+### Changed
+- Refactor scanner.js for complete Windows native support including native ARP scanning, dynamic Tailscale detection, and updated port configurations
+
 ## [0.8.7] - 2026-09-07
 
 ### Changed
