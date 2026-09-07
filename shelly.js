@@ -22,6 +22,7 @@ const MAX_EVENTS = 200;
 
 class ShellyPresenceBridge {
   constructor() {
+    this.enabled = process.env.SHELLY_ENABLED === 'true';
     this.ip = SHELLY_IP;
     this.deviceInfo = null;
     this.online = false;
@@ -316,6 +317,7 @@ class ShellyPresenceBridge {
   // --- Public snapshot for the API ---
 
   getState() {
+    if (!this.enabled) return { enabled: false, present: false, online: false };
     return {
       source: 'shelly-presence',
       device: this.deviceInfo ? { ...this.deviceInfo, ip: this.ip } : { ip: this.ip, model: null },
@@ -330,6 +332,7 @@ class ShellyPresenceBridge {
   }
 
   getPresenceSummary() {
+    if (!this.enabled) return { enabled: false, present: false, online: false, numObjects: 0, zoneName: 'Room', ip: this.ip };
     return {
       present: this.presence.present,
       numObjects: this.presence.numObjects,

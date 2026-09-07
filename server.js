@@ -14,7 +14,11 @@ const HOST = process.env.HOST || '0.0.0.0';
 scanner.startPeriodicScan(15000);
 
 // Start Shelly Presence bridge (poll + websocket event channel)
-shelly.start();
+if (shelly.enabled) {
+  shelly.start();
+} else {
+  console.log('[shelly] Shelly Presence bridge is disabled via config.');
+}
 
 function sendJson(res, statusCode, data, isHead = false) {
   const json = JSON.stringify(data, null, 2);

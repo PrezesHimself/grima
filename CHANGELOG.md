@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.8.3] - 2026-09-07
+
+### Changed
+- Make Shelly sensor configurable and disable it by default if SHELLY_ENABLED is not set to true
+
 ## [0.8.2] - 2026-09-07
 
 ### Changed

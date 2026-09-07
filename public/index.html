@@ -745,7 +745,12 @@
         card.classList.remove('presence-active');
         sub.textContent = `No motion in ${p.zoneName || 'Room'} · Shelly ${p.device || ''}`;
       }
-      badge.textContent = p.online ? 'Sensor Online' : 'Sensor Offline';
+      if (p.enabled === false) {
+        badge.textContent = 'Sensor Disabled';
+        badge.className = 'status-badge bg-gray/10 text-gray';
+      } else {
+        badge.textContent = p.online ? 'Sensor Online' : 'Sensor Offline';
+      }
       badge.className = 'badge ' + (p.online ? 'badge-success' : 'badge-warning');
     }
 
