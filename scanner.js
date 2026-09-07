@@ -785,6 +785,44 @@ class NetworkScanner {
     };
   }
 
+
+  async scanTailscalePeers() {
+    try {
+      let cmd = 'tailscale status --json';
+      if (os.platform() === 'win32' && fs.existsSync('C:\\Program Files\\Tailscale\\tailscale.exe')) {
+        cmd = '"C:\\Program Files\\Tailscale\\tailscale.exe" status --json';
+      }
+      const out = await this.execCommand(cmd);
+      if (!out) return [];
+      const data = JSON.parse(out);
+      const peers = [];
+      const promises = [];
+
+      if (data.Peer) {
+        for (const peer of Object.values(data.Peer)) {
+          const ip = peer.TailscaleIPs?.[0];
+          if (!ip) continue;
+          promises.push(
+            this.probeTcpPort(ip, 4981, 1000).then(isOpen => {
+              if (isOpen) {
+                peers.push({
+                  hostname: peer.HostName,
+                  ip: ip,
+                  os: peer.OS,
+                  url: `http://${ip}:4981`
+                });
+              }
+            })
+          );
+        }
+      }
+      await Promise.all(promises);
+      return peers;
+    } catch (e) {
+      return [];
+    }
+  }
+
   async scanAll() {
     if (this.isScanning && this.cachedData) {
       return this.cachedData;
@@ -792,13 +830,14 @@ class NetworkScanner {
     this.isScanning = true;
 
     try {
-      const [router, wifiNetworks, devices, netStats, gwPing, inetPing] = await Promise.all([
+      const [router, wifiNetworks, devices, netStats, gwPing, inetPing, tsPeers] = await Promise.all([
         this.fetchRouterUpnp(),
         this.scanWifiNetworks(),
         this.scanConnectedDevices(),
         this.getInterfaceStats(),
         this.pingLatency(GATEWAY_IP),
-        this.pingLatency('1.1.1.1')
+        this.pingLatency('1.1.1.1'),
+        this.scanTailscalePeers()
       ]);
 
       const clients = devices.filter(d => !d.isRouter);
@@ -811,6 +850,7 @@ class NetworkScanner {
       const primaryWifiSsid = namedAp ? namedAp.ssid : (localAps[0]?.ssid || 'Unknown Network');
 
       const tailscale = this.getTailscaleInfo();
+      tailscale.grimaPeers = tsPeers;
 
       this.cachedData = {
         timestamp: new Date().toISOString(),

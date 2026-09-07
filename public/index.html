@@ -499,6 +499,10 @@
           <div><strong style="color: var(--text-muted);">Ethernet Traffic:</strong> <span id="host-traffic">--</span></div>
           <div><strong style="color: var(--text-muted);">Physical NIC:</strong> <span id="host-nic">enp1s0 (1000 Mbps)</span></div>
         </div>
+        <div id="ts-peers-container" style="display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); grid-column: 1 / -1;">
+          <strong style="color: var(--text-muted);">Other Grima Nodes on Tailscale:</strong>
+          <div id="ts-peers-list" style="margin-top: 0.5rem; display: flex; gap: 1rem; flex-wrap: wrap;"></div>
+        </div>
       </div>
     </div>
 
@@ -624,6 +628,14 @@
         document.getElementById('ts-badge').textContent = `Tailscale: ${ts.ip}`;
         document.getElementById('ts-ip').textContent = ts.ip;
         document.getElementById('ts-host').textContent = ts.hostname || 'mr-wyse-5070-thin-client';
+      }
+      if (ts.grimaPeers && ts.grimaPeers.length > 0) {
+        const container = document.getElementById('ts-peers-container');
+        const list = document.getElementById('ts-peers-list');
+        container.style.display = 'block';
+        list.innerHTML = ts.grimaPeers.map(p => `<a href="${p.url}" target="_blank" style="display: inline-flex; align-items: center; background: rgba(59, 130, 246, 0.1); color: #3b82f6; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.85rem; text-decoration: none; border: 1px solid rgba(59, 130, 246, 0.2); transition: all 0.2s;"><span>🌐 ${escapeHtml(p.hostname || p.ip)}</span></a>`).join('');
+      } else {
+        document.getElementById('ts-peers-container').style.display = 'none';
       }
 
       // Cards
