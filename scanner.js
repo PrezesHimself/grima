@@ -750,11 +750,23 @@ class NetworkScanner {
     }
   }
 
-  getHostMetrics() {
+  async getHostMetrics() {
     const cpus = os.cpus();
     const totalMem = os.totalmem();
     const freeMem = os.freemem();
     const usedMem = totalMem - freeMem;
+
+    let temperature = null;
+    try {
+      if (os.platform() === 'win32') {
+        const out = cp.execSync('powershell.exe -Command "(Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature -ErrorAction SilentlyContinue | Select-Object -First 1).CurrentTemperature"', {stdio: 'pipe', timeout: 3000}).toString();
+        const raw = parseInt(out.trim(), 10);
+        if (!isNaN(raw) && raw > 0) temperature = parseFloat(((raw / 10) - 273.15).toFixed(1));
+      } else {
+        const tempStr = fs.readFileSync('/sys/class/thermal/thermal_zone0/temp', 'utf8');
+        temperature = parseFloat((parseInt(tempStr.trim(), 10) / 1000).toFixed(1));
+      }
+    } catch(e) {}
 
     return {
       hostname: os.hostname(),
@@ -764,6 +776,7 @@ class NetworkScanner {
       uptimeFormatted: `${Math.floor(os.uptime() / 3600)}h ${Math.floor((os.uptime() % 3600) / 60)}m`,
       cpuCount: cpus.length,
       cpuModel: cpus[0]?.model || 'Unknown',
+      cpuTempC: temperature,
       loadAvg1m: os.loadavg()[0].toFixed(2),
       loadAvg5m: os.loadavg()[1].toFixed(2),
       ramTotalMb: Math.round(totalMem / (1024 * 1024)),
@@ -833,7 +846,7 @@ class NetworkScanner {
           testedTarget: '1.1.1.1 (Cloudflare DNS)'
         },
         interfaceStats: netStats,
-        host: this.getHostMetrics()
+        host: await this.getHostMetrics()
       };
 
       this.lastScanTime = Date.now();
