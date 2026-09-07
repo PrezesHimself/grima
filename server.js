@@ -292,4 +292,6 @@ function shutdown() {
   setTimeout(() => process.exit(0), 1000);
 }
 process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+if (process.stdin.isTTY || process.platform !== 'win32') {
+  process.on('SIGINT', shutdown);
+}
