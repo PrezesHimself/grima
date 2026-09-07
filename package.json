@@ -1,6 +1,6 @@
 {
   "name": "grima",
-  "version": "0.8.6",
+  "version": "0.8.7",
   "description": "Grima - Real-time Wi-Fi status, connected devices, and network telemetry daemon",
   "main": "server.js",
   "scripts": {

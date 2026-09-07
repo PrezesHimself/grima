@@ -11,7 +11,15 @@ let GATEWAY_IP = '192.168.1.1';
 let HOST_IP = '192.168.1.104';
 
 try {
-  const routeOut = cp.execSync('ip -4 route show default', {stdio: 'pipe'}).toString();
+  if (os.platform() === 'win32') {
+    const routeOut = cp.execSync('route print -4', {stdio: 'pipe'}).toString();
+    const gwMatch = routeOut.match(/0\.0\.0\.0\s+0\.0\.0\.0\s+(\d+\.\d+\.\d+\.\d+)\s+(\d+\.\d+\.\d+\.\d+)/);
+    if (gwMatch) {
+      GATEWAY_IP = gwMatch[1];
+      HOST_IP = gwMatch[2];
+    }
+  } else {
+    const routeOut = cp.execSync('ip -4 route show default', {stdio: 'pipe'}).toString();
   const gwMatch = routeOut.match(/default via (\d+\.\d+\.\d+\.\d+)/);
   if (gwMatch) GATEWAY_IP = gwMatch[1];
   
@@ -321,9 +329,19 @@ class NetworkScanner {
   }
 
   async pingLatency(target) {
-    const out = await this.execFilePromise('ping', ['-c', '1', '-W', '1', target], 1500);
-    const match = out.match(/rtt min\/avg\/max\/mdev = [^\/]+\/([^\/]+)\//);
-    return match ? parseFloat(match[1]) : null;
+    try {
+      if (os.platform() === 'win32') {
+        const out = await this.execFilePromise('ping', ['-n', '1', '-w', '1000', target], 1500);
+        const match = out.match(/Average = (\d+)ms/i) || out.match(/Average = (\d+)/i) || out.match(/\b(\d+)ms/i);
+        return match ? parseFloat(match[1]) : null;
+      } else {
+        const out = await this.execFilePromise('ping', ['-c', '1', '-W', '1', target], 1500);
+        const match = out.match(/rtt min\/avg\/max\/mdev = [^\/]+\/([^\/]+)\//);
+        return match ? parseFloat(match[1]) : null;
+      }
+    } catch (e) {
+      return null;
+    }
   }
 
   async fetchRouterUpnp() {
@@ -399,51 +417,77 @@ class NetworkScanner {
   }
 
   async scanWifiNetworks() {
-    const raw = await this.execCommand('nmcli -t -f SSID,BSSID,CHAN,FREQ,SIGNAL,SECURITY,RATE dev wifi list');
-    if (!raw) return [];
-
     const networks = [];
-    const seen = new Set();
-    const lines = raw.split('\n');
+    try {
+      if (os.platform() === 'win32') {
+        const raw = await this.execCommand('netsh wlan show networks mode=Bssid');
+        if (!raw) return [];
+        let currentSsid = '';
+        const blocks = raw.split(/\r?\n\r?\n/);
+        for (const block of blocks) {
+          const ssidMatch = block.match(/SSID \d+ : (.*)/);
+          if (ssidMatch) currentSsid = ssidMatch[1].trim();
+          if (!currentSsid) continue;
 
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      const parts = line.split(':');
-      if (parts.length < 7) continue;
+          const lines = block.split(/\r?\n/);
+          let bssid = '', signal = 0, channel = '', freq = '', security = 'Unknown', rate = '';
+          for (const line of lines) {
+            if (line.includes('Authentication')) security = line.split(':')[1]?.trim() || security;
+            if (line.includes('BSSID')) bssid = line.split(/:\s+/)[1]?.trim() || bssid;
+            if (line.includes('Signal')) {
+              const sigStr = line.split(/:\s+/)[1]?.trim() || '0%';
+              signal = parseInt(sigStr.replace('%', ''), 10);
+            }
+            if (line.includes('Channel')) channel = line.split(/:\s+/)[1]?.trim() || channel;
+            if (line.includes('Radio type')) {
+              const radio = line.split(/:\s+/)[1]?.trim() || '';
+              freq = radio.includes('ac') || radio.includes('ax') || radio.includes('n') ? '5GHz/2.4GHz' : radio;
+            }
+          }
+          if (bssid) {
+            networks.push({
+              ssid: currentSsid,
+              bssid: bssid.replace(/-/g, ':').toLowerCase(),
+              channel,
+              frequency: freq,
+              signalPercent: signal,
+              signalDbm: Math.round((signal / 100) * 50 - 100),
+              security,
+              maxBitrate: rate,
+              isLocalAp: false
+            });
+          }
+        }
+      } else {
+        const raw = await this.execCommand('nmcli -t -f SSID,BSSID,CHAN,FREQ,SIGNAL,SECURITY,RATE dev wifi list');
+        if (!raw) return [];
+        const seen = new Set();
+        const lines = raw.split('\n');
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const parts = line.split(':');
+          if (parts.length < 7) continue;
 
-      let ssid = parts[0] || '(Hidden Network)';
-      let bssid = parts.slice(1, 7).join(':').replace(/\\/g, '');
-      let channel = parts[7] || '';
-      let freq = parts[8] || '';
-      let signal = parseInt(parts[9] || '0', 10);
-      let security = parts[10] || 'Open';
-      let rate = parts.slice(11).join(':') || '';
+          let ssid = parts[0] || '(Hidden Network)';
+          let bssid = parts.slice(1, 7).join(':').replace(/\\/g, '');
+          let channel = parts[7] || '';
+          let freq = parts[8] || '';
+          let signal = parseInt(parts[9] || '0', 10);
+          let security = parts[10] || 'Open';
+          let rate = parts.slice(11).join(':') || '';
 
-      const key = `${bssid}-${channel}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
+          const key = `${bssid}-${channel}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
 
-      const isLocalAp = bssid.toLowerCase().startsWith('08:8a:f1') || bssid.toLowerCase().startsWith('0a:8a:f1');
-
-      networks.push({
-        ssid,
-        bssid,
-        channel,
-        frequency: freq,
-        signalPercent: signal,
-        signalDbm: Math.round((signal / 2) - 100),
-        security,
-        rate,
-        isLocalAp
-      });
-    }
-
-    networks.sort((a, b) => {
-      if (a.isLocalAp && !b.isLocalAp) return -1;
-      if (!a.isLocalAp && b.isLocalAp) return 1;
-      return b.signalPercent - a.signalPercent;
-    });
-
+          const isLocalAp = bssid.toLowerCase().startsWith('08:8a:f1') || bssid.toLowerCase().startsWith('0a:8a:f1');
+          networks.push({
+            ssid, bssid, channel, frequency: freq, signalPercent: signal,
+            signalDbm: Math.round((signal / 100) * 50 - 100), security, maxBitrate: rate, isLocalAp
+          });
+        }
+      }
+    } catch (e) {}
     return networks;
   }
 
@@ -505,9 +549,21 @@ class NetworkScanner {
     const routeOut = cp.execSync('ip route show default', {stdio: 'pipe'}).toString();
     const ifaceMatch = routeOut.match(/dev (\S+)/);
     let thisHostMac = 'unknown';
-    if (ifaceMatch) {
-      const macMatch = cp.execSync(`ip link show ${ifaceMatch[1]}`, {stdio: 'pipe'}).toString().match(/link\/ether ([\w:]+)/);
-      if (macMatch) thisHostMac = macMatch[1];
+    if (os.platform() === 'win32') {
+      try {
+        const getmacOut = cp.execSync('getmac /NH /V /FO CSV', {stdio: 'pipe'}).toString();
+        const lines = getmacOut.split('\n');
+        for (const line of lines) {
+          if (line.includes('Disconnected') || line.includes('N/A')) continue;
+          const match = line.match(/"[^"]+","[^"]+","([^"]+)"/);
+          if (match) { thisHostMac = match[1].replace(/-/g, ':').toLowerCase(); break; }
+        }
+      } catch (e) {}
+    } else {
+      if (ifaceMatch) {
+        const macMatch = cp.execSync(`ip link show ${ifaceMatch[1]}`, {stdio: 'pipe'}).toString().match(/link\/ether ([\w:]+)/);
+        if (macMatch) thisHostMac = macMatch[1];
+      }
     }
     const thisHostIp = HOST_IP;
 
@@ -530,7 +586,16 @@ class NetworkScanner {
     });
 
     let routerMac = 'unknown';
-    try { const gwMacMatch = cp.execSync(`ip neigh show ${GATEWAY_IP}`, {stdio: 'pipe'}).toString().match(/lladdr ([\w:]+)/); if (gwMacMatch) routerMac = gwMacMatch[1].toLowerCase(); } catch (e) {}
+    try {
+      if (os.platform() === 'win32') {
+        const arpOut = cp.execSync(`arp -a ${GATEWAY_IP}`, {stdio: 'pipe'}).toString();
+        const gwMacMatch = arpOut.match(/([0-9a-fA-F]{2}-[0-9a-fA-F]{2}-[0-9a-fA-F]{2}-[0-9a-fA-F]{2}-[0-9a-fA-F]{2}-[0-9a-fA-F]{2})/);
+        if (gwMacMatch) routerMac = gwMacMatch[1].replace(/-/g, ':').toLowerCase();
+      } else {
+        const gwMacMatch = cp.execSync(`ip neigh show ${GATEWAY_IP}`, {stdio: 'pipe'}).toString().match(/lladdr ([\w:]+)/);
+        if (gwMacMatch) routerMac = gwMacMatch[1].toLowerCase();
+      }
+    } catch (e) {}
     if (!activeMap.has(routerMac)) {
       activeMap.set(routerMac, { ip: GATEWAY_IP, mac: routerMac, state: 'REACHABLE' });
     }

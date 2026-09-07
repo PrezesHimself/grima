@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.8.7] - 2026-09-07
+
+### Changed
+- Add Windows adapter to scanner.js to allow running natively on Windows via netsh, route print, and Windows arp
+
 ## [0.8.6] - 2026-09-07
 
 ### Changed
