@@ -494,7 +494,8 @@
           <div><strong style="color: var(--text-muted);">System Uptime:</strong> <span id="host-uptime">--</span></div>
         </div>
         <div style="font-size: 0.9rem; line-height: 1.8;">
-          <div><strong style="color: var(--text-muted);">CPU Load & Temp:</strong> <span id="host-cpu">--</span></div>
+          <div><strong style="color: var(--text-muted);">CPU Load & Cores:</strong> <span id="host-cpu">--</span></div>
+          <div><strong style="color: var(--text-muted);">Hardware Temp:</strong> <span id="host-temp">--</span></div>
           <div><strong style="color: var(--text-muted);">RAM Usage:</strong> <span id="host-ram">--</span></div>
           <div><strong style="color: var(--text-muted);">Ethernet Traffic:</strong> <span id="host-traffic">--</span></div>
           <div><strong style="color: var(--text-muted);">Physical NIC:</strong> <span id="host-nic">enp1s0 (1000 Mbps)</span></div>
@@ -739,7 +740,24 @@
       // Host Stats
       document.getElementById('host-name').textContent = host.hostname || '--';
       document.getElementById('host-uptime').textContent = host.uptimeFormatted || '--';
-      document.getElementById('host-cpu').textContent = `${host.loadAvg1m || '--'} / ${host.loadAvg5m || '--'} (${host.cpuCount || 4} cores)` + (host.cpuTempC ? ` @ ${host.cpuTempC}°C` : '');
+      document.getElementById('host-cpu').textContent = `${host.loadAvg1m || '--'} / ${host.loadAvg5m || '--'} (${host.cpuCount || 4} cores)`;
+      
+      const tempElem = document.getElementById('host-temp');
+      if (tempElem) {
+        const badges = [];
+        if (host.cpuTempC && (!host.gpuTempC || host.cpuTempC !== host.gpuTempC)) {
+          badges.push(`<span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #f87171; font-size: 0.82rem; padding: 2px 7px;">CPU: ${escapeHtml(host.cpuTempC)}°C</span>`);
+        }
+        if (host.gpuTempC) {
+          const gShort = host.gpu?.name ? ` (${host.gpu.name.replace('NVIDIA GeForce ', '')})` : '';
+          badges.push(`<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #34d399; font-size: 0.82rem; padding: 2px 7px;">GPU: ${escapeHtml(host.gpuTempC)}°C${escapeHtml(gShort)}</span>`);
+        }
+        if (badges.length === 0 && host.tempC) {
+          badges.push(`<span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #f87171; font-size: 0.82rem; padding: 2px 7px;">${escapeHtml(host.tempC)}°C</span>`);
+        }
+        tempElem.innerHTML = badges.length > 0 ? badges.join(' ') : '<span style="color: var(--text-muted);">--</span>';
+      }
+
       document.getElementById('host-ram').textContent = `${host.ramUsedMb || 0} MB / ${host.ramTotalMb || 0} MB (${host.ramUsagePercent || 0}%)`;
       document.getElementById('host-traffic').textContent = `RX: ${iface.rxMb || 0} MB · TX: ${iface.txMb || 0} MB`;
     }

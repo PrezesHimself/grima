@@ -756,17 +756,62 @@ class NetworkScanner {
     const freeMem = os.freemem();
     const usedMem = totalMem - freeMem;
 
-    let temperature = null;
+    let cpuTemperature = null;
+    let gpuTemperature = null;
+    let gpuInfo = null;
+
     try {
       if (os.platform() === 'win32') {
-        const out = cp.execSync('powershell.exe -Command "(Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature -ErrorAction SilentlyContinue | Select-Object -First 1).CurrentTemperature"', {stdio: 'pipe', timeout: 3000}).toString();
-        const raw = parseInt(out.trim(), 10);
-        if (!isNaN(raw) && raw > 0) temperature = parseFloat(((raw / 10) - 273.15).toFixed(1));
+        // 1. GPU Temperature & Telemetry via nvidia-smi (fast, non-blocking, no admin required)
+        try {
+          const nvOut = await this.execCommand('nvidia-smi --query-gpu=name,temperature.gpu,utilization.gpu,power.draw --format=csv,noheader,nounits', 1500);
+          if (nvOut && nvOut.includes(',')) {
+            const parts = nvOut.trim().split(/,\s*/);
+            if (parts.length >= 2) {
+              const parsedTemp = parseFloat(parts[1]);
+              if (!isNaN(parsedTemp)) {
+                gpuTemperature = parsedTemp;
+                gpuInfo = {
+                  name: parts[0],
+                  tempC: parsedTemp,
+                  utilizationPercent: parseFloat(parts[2]) || 0,
+                  powerDrawW: parseFloat(parts[3]) || 0
+                };
+              }
+            }
+          }
+        } catch (e) {}
+
+        // 2. CPU / ACPI Thermal Zone
+        try {
+          const tzOut = await this.execCommand('powershell.exe -NoProfile -Command "(Get-CimInstance -ClassName Win32_PerfFormattedData_Counters_ThermalZoneInformation -ErrorAction SilentlyContinue | Select-Object -First 1).HighPrecisionTemperature"', 1500);
+          const raw = parseInt(tzOut.trim(), 10);
+          if (!isNaN(raw) && raw > 2731) {
+            cpuTemperature = parseFloat(((raw / 10) - 273.15).toFixed(1));
+          }
+        } catch (e) {}
       } else {
-        const tempStr = fs.readFileSync('/sys/class/thermal/thermal_zone0/temp', 'utf8');
-        temperature = parseFloat((parseInt(tempStr.trim(), 10) / 1000).toFixed(1));
+        try {
+          const tempFiles = [
+            '/sys/class/thermal/thermal_zone0/temp',
+            '/sys/class/thermal/thermal_zone1/temp',
+            '/sys/class/hwmon/hwmon0/temp1_input'
+          ];
+          for (const f of tempFiles) {
+            if (fs.existsSync(f)) {
+              const tempStr = fs.readFileSync(f, 'utf8');
+              const t = parseInt(tempStr.trim(), 10);
+              if (!isNaN(t) && t > 0) {
+                cpuTemperature = parseFloat((t > 1000 ? t / 1000 : t).toFixed(1));
+                break;
+              }
+            }
+          }
+        } catch (e) {}
       }
     } catch(e) {}
+
+    const primaryTemp = cpuTemperature !== null ? cpuTemperature : (gpuTemperature !== null ? gpuTemperature : null);
 
     return {
       hostname: os.hostname(),
@@ -776,7 +821,10 @@ class NetworkScanner {
       uptimeFormatted: `${Math.floor(os.uptime() / 3600)}h ${Math.floor((os.uptime() % 3600) / 60)}m`,
       cpuCount: cpus.length,
       cpuModel: cpus[0]?.model || 'Unknown',
-      cpuTempC: temperature,
+      cpuTempC: cpuTemperature || gpuTemperature,
+      gpuTempC: gpuTemperature,
+      gpu: gpuInfo,
+      tempC: primaryTemp,
       loadAvg1m: os.loadavg()[0].toFixed(2),
       loadAvg5m: os.loadavg()[1].toFixed(2),
       ramTotalMb: Math.round(totalMem / (1024 * 1024)),
