@@ -15,15 +15,16 @@
 const http = require('http');
 const { publish } = require('./events');
 
-const SHELLY_IP = process.env.SHELLY_IP || '192.168.1.102';
 const POLL_INTERVAL_MS = parseInt(process.env.SHELLY_POLL_MS || '5000', 10);
 const HTTP_TIMEOUT_MS = 3000;
 const MAX_EVENTS = 200;
 
 class ShellyPresenceBridge {
-  constructor() {
-    this.enabled = process.env.SHELLY_ENABLED === 'true';
-    this.ip = SHELLY_IP;
+  constructor(config) {
+    this.enabled = config.enabled !== false;
+    this.ip = config.ip;
+    this.name = config.name || 'Shelly Sensor';
+    
     this.deviceInfo = null;
     this.online = false;
     this.lastSeen = null;
@@ -346,4 +347,4 @@ class ShellyPresenceBridge {
   }
 }
 
-module.exports = new ShellyPresenceBridge();
+module.exports = ShellyPresenceBridge;

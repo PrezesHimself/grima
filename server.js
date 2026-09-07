@@ -3,7 +3,14 @@ const fs = require('fs');
 const path = require('path');
 const scanner = require('./scanner');
 const speedTester = require('./speedtest');
-const shelly = require('./shelly');
+const ShellyPresenceBridge = require('./shelly');
+let config = { shellySensors: [] };
+try {
+  config = require('./config.json');
+} catch(e) {}
+
+const shellies = (config.shellySensors || []).map(c => new ShellyPresenceBridge(c));
+
 const { bus, getHistory } = require('./events');
 const pkg = require('./package.json');
 
@@ -14,11 +21,10 @@ const HOST = process.env.HOST || '0.0.0.0';
 scanner.startPeriodicScan(15000);
 
 // Start Shelly Presence bridge (poll + websocket event channel)
-if (shelly.enabled) {
-  shelly.start();
-} else {
-  console.log('[shelly] Shelly Presence bridge is disabled via config.');
-}
+shellies.forEach(s => {
+  if (s.enabled) s.start();
+  else console.log(`[shelly] ${s.name} bridge is disabled via config.`);
+});
 
 function sendJson(res, statusCode, data, isHead = false) {
   const json = JSON.stringify(data, null, 2);
@@ -97,7 +103,7 @@ const server = http.createServer(async (req, res) => {
         description: 'Grima API documentation, OpenAPI 3.0 schema, and agent implementation guide for LLMs and clients.'
       },
       lastSpeedTest: speedTester.lastResult,
-      shelly: shelly.getPresenceSummary(),
+      shelly: shellies.map(s => s.getPresenceSummary()),
       ...data
     }, isHead);
   }
@@ -128,11 +134,11 @@ const server = http.createServer(async (req, res) => {
 
   // --- Shelly Presence API Endpoints ---
   if (pathname === '/api/shelly' && (isGet || isHead)) {
-    return sendJson(res, 200, shelly.getState(), isHead);
+    return sendJson(res, 200, shellies.map(s => s.getState()), isHead);
   }
 
   if (pathname === '/api/presence' && (isGet || isHead)) {
-    return sendJson(res, 200, shelly.getPresenceSummary(), isHead);
+    return sendJson(res, 200, shellies.map(s => s.getPresenceSummary()), isHead);
   }
 
   if (pathname === '/api/shelly/webhook' && req.method === 'POST') {
@@ -145,7 +151,9 @@ const server = http.createServer(async (req, res) => {
     req.on('end', () => {
       try {
         const payload = JSON.parse(body || '{}');
-        shelly.applyWebhookEvent(payload);
+        const senderIp = req.socket.remoteAddress.replace(/^::ffff:/, '');
+        const shelly = shellies.find(s => s.ip === senderIp);
+        if (shelly && shelly.enabled) shelly.applyWebhookEvent(payload);
         sendJson(res, 200, { ok: true }, false);
       } catch (e) {
         sendJson(res, 400, { error: 'Invalid JSON payload' }, false);
@@ -182,7 +190,7 @@ const server = http.createServer(async (req, res) => {
       type: 'stream_connected',
       detail: {
         message: 'Event stream established. Presence events come from the Shelly sensor, device events from LAN scans.',
-        presence: shelly.getPresenceSummary(),
+        presence: shellies.map(s => s.getPresenceSummary()),
         recentEvents: getHistory().slice(0, 20)
       }
     });

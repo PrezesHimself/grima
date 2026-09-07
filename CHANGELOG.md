@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.8.4] - 2026-09-07
+
+### Changed
+- Refactor Shelly configuration to use config.json for multi-device support and disable by default
+
 ## [0.8.3] - 2026-09-07
 
 ### Changed

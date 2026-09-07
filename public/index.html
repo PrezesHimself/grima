@@ -713,7 +713,15 @@
       }).join('');
 
       // Shelly Presence (from /api/status shelly block — SSE also updates this live)
-      if (data.shelly) renderPresence(data.shelly);
+      
+      if (Array.isArray(data.shelly)) {
+        // Just take the first one to render, or loop if we rewrite the UI. 
+        // We'll just take the first one for backwards compatibility if the array isn't empty
+        if (data.shelly.length > 0) renderPresence(data.shelly[0]);
+      } else if (data.shelly) {
+        renderPresence(data.shelly);
+      }
+
 
       // Host Stats
       document.getElementById('host-name').textContent = host.hostname || '--';
@@ -751,7 +759,7 @@
       } else {
         badge.textContent = p.online ? 'Sensor Online' : 'Sensor Offline';
       }
-      badge.className = 'badge ' + (p.online ? 'badge-success' : 'badge-warning');
+      if (p.enabled !== false) badge.className = 'badge ' + (p.online ? 'badge-success' : 'badge-warning');
     }
 
     async function refreshPresence() {
