@@ -1,9 +1,29 @@
+const os = require('os');
 const fs = require('fs');
 const http = require('http');
 const { publish } = require('./events');
 const dgram = require('dgram');
+
+
+const cp = require('child_process');
+
+let GATEWAY_IP = '192.168.1.1';
+let HOST_IP = '192.168.1.104';
+
+try {
+  const routeOut = cp.execSync('ip -4 route show default', {stdio: 'pipe'}).toString();
+  const gwMatch = routeOut.match(/default via (\d+\.\d+\.\d+\.\d+)/);
+  if (gwMatch) GATEWAY_IP = gwMatch[1];
+  
+  const ipOut = cp.execSync('ip -o -4 route get 1.1.1.1', {stdio: 'pipe'}).toString();
+  const hostMatch = ipOut.match(/src (\d+\.\d+\.\d+\.\d+)/);
+  if (hostMatch) HOST_IP = hostMatch[1];
+} catch (e) {}
+
+const SUBNET_BASE = GATEWAY_IP.substring(0, GATEWAY_IP.lastIndexOf('.'));
+
 const net = require('net');
-const os = require('os');
+
 const { exec, execFile } = require('child_process');
 
 class NetworkScanner {
@@ -52,7 +72,7 @@ class NetworkScanner {
 
   seedKnownDevices() {
     this.deviceRegistry.set('08:8a:f1:5e:5d:bc', {
-      ip: '192.168.1.1',
+      ip: GATEWAY_IP,
       name: 'Mercusys AC12G Dual Band Router',
       type: 'Router / Gateway',
       medium: 'Router / AP',
@@ -176,7 +196,7 @@ class NetworkScanner {
             if (offset === null || offset + 10 > buf.length) return;
             const rdlen = buf.readUInt16BE(offset + 8);
             const name = this.readDnsName(buf, nameStart, []).join('.');
-            if (name && srcIp !== '192.168.1.104' && srcIp !== '127.0.0.1') {
+            if (name && srcIp !== HOST_IP && srcIp !== '127.0.0.1') {
               let set = found.get(srcIp);
               if (!set) { set = new Set(); found.set(srcIp, set); }
               set.add(name.toLowerCase());
@@ -316,7 +336,7 @@ class NetworkScanner {
   </s:Body>
 </s:Envelope>`;
         const req = http.request({
-          hostname: '192.168.1.1',
+          hostname: GATEWAY_IP,
           port: 1900,
           path: controlUrl,
           method: 'POST',
@@ -359,7 +379,7 @@ class NetworkScanner {
 
       return {
         model: 'MERCUSYS AC12G AC1300 Wireless Dual Band Gigabit Router',
-        gatewayIp: '192.168.1.1',
+        gatewayIp: GATEWAY_IP,
         externalIp: ipMatch ? ipMatch[1] : 'Unknown',
         uptimeSeconds: uptimeSec,
         uptimeFormatted,
@@ -369,7 +389,7 @@ class NetworkScanner {
     } catch (e) {
       return {
         model: 'MERCUSYS AC12G',
-        gatewayIp: '192.168.1.1',
+        gatewayIp: GATEWAY_IP,
         externalIp: 'Unavailable',
         uptimeFormatted: 'Unknown',
         connectionStatus: 'Unknown',
@@ -432,7 +452,7 @@ class NetworkScanner {
       const socket = dgram.createSocket('udp4');
       for (let i = 1; i <= 254; i++) {
         try {
-          socket.send(Buffer.alloc(0), 5353, `192.168.1.${i}`);
+          socket.send(Buffer.alloc(0), 5353, `${SUBNET_BASE}.${i}`);
         } catch (e) {}
       }
       setTimeout(() => {
@@ -483,7 +503,7 @@ class NetworkScanner {
     }
 
     const thisHostMac = await this.execCommand('cat /sys/class/net/enp1s0/address');
-    const thisHostIp = '192.168.1.104';
+    const thisHostIp = HOST_IP;
 
     const devices = [];
 
@@ -505,7 +525,7 @@ class NetworkScanner {
 
     const routerMac = '08:8a:f1:5e:5d:bc';
     if (!activeMap.has(routerMac)) {
-      activeMap.set(routerMac, { ip: '192.168.1.1', mac: routerMac, state: 'REACHABLE' });
+      activeMap.set(routerMac, { ip: GATEWAY_IP, mac: routerMac, state: 'REACHABLE' });
     }
 
     const mdnsMap = await mdnsPromise;
@@ -516,9 +536,9 @@ class NetworkScanner {
 
       const registered = this.deviceRegistry.get(mac);
       const vendor = registered?.vendor || this.lookupVendor(mac);
-      const name = registered?.name || (info.ip === '192.168.1.1' ? 'Mercusys AC12G Router' : `${vendor} Device`);
-      const type = registered?.type || (info.ip === '192.168.1.1' ? 'Router / Gateway' : 'Network Client');
-      const medium = registered?.medium || (info.ip === '192.168.1.1' ? 'Router / AP' : 'Wi-Fi');
+      const name = registered?.name || (info.ip === GATEWAY_IP ? 'Mercusys AC12G Router' : `${vendor} Device`);
+      const type = registered?.type || (info.ip === GATEWAY_IP ? 'Router / Gateway' : 'Network Client');
+      const medium = registered?.medium || (info.ip === GATEWAY_IP ? 'Router / AP' : 'Wi-Fi');
 
       const devObj = {
         ip: info.ip,
@@ -529,7 +549,7 @@ class NetworkScanner {
         medium,
         latencyMs: null,
         state: info.state,
-        isRouter: info.ip === '192.168.1.1',
+        isRouter: info.ip === GATEWAY_IP,
         isLocalHost: false
       };
 
@@ -540,7 +560,7 @@ class NetworkScanner {
           devObj.latencyMs = lat;
           const mdnsNames = mdnsMap.get(info.ip) ? [...mdnsMap.get(info.ip)] : [];
           const cls = this.classifyDevice(
-            { mac, vendor, seededType: registered?.type || null, isRouter: info.ip === '192.168.1.1', isLocalHost: false },
+            { mac, vendor, seededType: registered?.type || null, isRouter: info.ip === GATEWAY_IP, isLocalHost: false },
             sshOpen,
             mdnsNames
           );
@@ -574,7 +594,7 @@ class NetworkScanner {
 
       return {
         interface: 'enp1s0',
-        ip: '192.168.1.104/24',
+        ip: `\${HOST_IP}/24`,
         speedMbps: speed ? parseInt(speed, 10) : 1000,
         rxBytes,
         txBytes,
@@ -634,7 +654,7 @@ class NetworkScanner {
         this.scanWifiNetworks(),
         this.scanConnectedDevices(),
         this.getInterfaceStats(),
-        this.pingLatency('192.168.1.1'),
+        this.pingLatency(GATEWAY_IP),
         this.pingLatency('1.1.1.1')
       ]);
 
