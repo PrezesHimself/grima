@@ -330,7 +330,7 @@
       "WifiNetwork": {
         "type": "object",
         "properties": {
-          "ssid": { "type": "string", "example": "Sebastiana_20" },
+          "ssid": { "type": "string", "example": "Unknown Network" },
           "bssid": { "type": "string", "example": "08:8A:F1:5E:5D:BC" },
           "channel": { "type": "string", "example": "4" },
           "frequency": { "type": "string", "example": "2427 MHz" },

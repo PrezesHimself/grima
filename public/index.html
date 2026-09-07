@@ -630,7 +630,7 @@
       document.getElementById('total-clients-val').textContent = summary.connectedClientsCount ?? devices.length;
       document.getElementById('clients-sub').textContent = `${summary.wifiClientsCount || 0} Wi-Fi · ${summary.wiredClientsCount || 0} Wired`;
 
-      document.getElementById('primary-ssid-val').textContent = summary.primaryWifiSsid || 'Sebastiana_20';
+      document.getElementById('primary-ssid-val').textContent = summary.primaryWifiSsid || 'Unknown Network';
       const localAp = wifi.localAccessPoints?.[0];
       if (localAp) {
         document.getElementById('wifi-details-sub').textContent = `Signal: ${localAp.signalPercent}% (${localAp.signalDbm} dBm) · Ch ${localAp.channel}`;

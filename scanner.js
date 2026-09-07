@@ -665,7 +665,7 @@ class NetworkScanner {
 
       // Prefer named AP over hidden
       const namedAp = localAps.find(n => n.ssid && !n.ssid.startsWith('('));
-      const primaryWifiSsid = namedAp ? namedAp.ssid : (localAps[0]?.ssid || 'Sebastiana_20');
+      const primaryWifiSsid = namedAp ? namedAp.ssid : (localAps[0]?.ssid || 'Unknown Network');
 
       const tailscale = this.getTailscaleInfo();
 
