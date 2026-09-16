@@ -23,6 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+## [Unreleased]
+
+### Added
+- Apartment Plans tab (`/apartments`): three.js 3D floor-plan viewer with one plan per apartment (orbit / top view, wall hover labels, window & door markers, room labels, `.obj` export)
+- `GET /api/apartments` endpoint + `plans.json` data file (Sebastiana rough sketch: walls, openings, rooms)
+
 ## [0.8.11] - 2026-09-07
 
 ### Changed

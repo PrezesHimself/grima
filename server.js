@@ -9,6 +9,11 @@ try {
   config = require('./config.json');
 } catch(e) {}
 
+let plans = { units: 'meters', apartments: [] };
+try {
+  plans = require('./plans.json');
+} catch(e) {}
+
 const shellies = (config.shellySensors || []).map(c => new ShellyPresenceBridge(c));
 
 const { bus, getHistory } = require('./events');
@@ -141,6 +146,21 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, shellies.map(s => s.getPresenceSummary()), isHead);
   }
 
+  // --- Apartment Plans API Endpoint ---
+  if (pathname === '/api/apartments' && (isGet || isHead)) {
+    const apartments = plans.apartments.map(a => ({
+      ...a,
+      wallSegmentCount: (a.horizontalWalls?.length || 0) + (a.verticalWalls?.length || 0),
+      openingCount: a.openings?.length || 0
+    }));
+    return sendJson(res, 200, {
+      version: pkg.version,
+      units: plans.units,
+      count: apartments.length,
+      apartments
+    }, isHead);
+  }
+
   if (pathname === '/api/shelly/webhook' && req.method === 'POST') {
     // Push receiver for the Shelly device webhook (illuminance measurement/change events)
     let body = '';
@@ -252,11 +272,28 @@ const server = http.createServer(async (req, res) => {
     return serveFile(res, path.join(__dirname, 'public', 'index.html'), 'text/html; charset=utf-8', isHead);
   }
 
+  if ((pathname === '/apartments' || pathname === '/apartments.html') && (isGet || isHead)) {
+    return serveFile(res, path.join(__dirname, 'public', 'apartments.html'), 'text/html; charset=utf-8', isHead);
+  }
+
+  // Vendored static assets (three.js etc.) — path-traversal protected
+  if (pathname.startsWith('/vendor/') && (isGet || isHead)) {
+    const safeName = path.normalize(pathname.slice('/vendor/'.length)).replace(/^([.][.][/\\])+/, '');
+    const filePath = path.join(__dirname, 'public', 'vendor', safeName);
+    if (!filePath.startsWith(path.join(__dirname, 'public', 'vendor'))) {
+      return sendJson(res, 403, { error: 'Forbidden' }, isHead);
+    }
+    const ext = path.extname(filePath).toLowerCase();
+    const types = { '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.map': 'application/json; charset=utf-8' };
+    return serveFile(res, filePath, types[ext] || 'application/octet-stream', isHead);
+  }
+
   // 404
   sendJson(res, 404, {
     error: 'Not Found',
     availableEndpoints: [
       '/',
+      '/apartments',
       '/docs',
       '/docs/openapi.json',
       '/llms.txt',
@@ -266,6 +303,7 @@ const server = http.createServer(async (req, res) => {
       '/api/router',
       '/api/shelly',
       '/api/presence',
+      '/api/apartments',
       '/api/events',
       '/api/events/stream',
       '/api/speedtest',

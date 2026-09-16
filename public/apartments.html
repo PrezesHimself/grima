@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grima - Apartment Plans</title>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: rgba(22, 30, 49, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --badge-bg: rgba(59, 130, 246, 0.15);
+      --badge-text: #60a5fa;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      padding: 24px 16px;
+      min-height: 100vh;
+      background-image: radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.05) 0%, transparent 40%),
+                        radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.04) 0%, transparent 40%);
+    }
+
+    .container { max-width: 1200px; margin: 0 auto; }
+
+    header {
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 16px; margin-bottom: 16px; padding-bottom: 16px;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    .title-group h1 { font-size: 1.6rem; font-weight: 700; display: flex; align-items: center; gap: 10px; letter-spacing: -0.02em; }
+    .title-group p { color: var(--text-muted); font-size: 0.9rem; margin-top: 4px; }
+
+    .badge-version { background: rgba(255, 255, 255, 0.1); color: #e5e7eb; border: 1px solid rgba(255, 255, 255, 0.15); }
+
+    .badge { display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 6px;
+      font-size: 0.75rem; font-weight: 600; background: var(--badge-bg); color: var(--badge-text); }
+    .badge-success { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+    .badge-warning { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+
+    /* Tabs */
+    .tabs { display: flex; gap: 6px; margin-bottom: 20px; border-bottom: 1px solid var(--card-border); padding-bottom: 0; }
+    .tab {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 9px 16px; font-size: 0.92rem; font-weight: 600; text-decoration: none;
+      color: var(--text-muted); border: 1px solid transparent; border-bottom: none;
+      border-radius: 10px 10px 0 0; transition: all 0.15s;
+    }
+    .tab:hover { color: var(--text); background: rgba(255, 255, 255, 0.04); }
+    .tab.active {
+      color: var(--badge-text); background: var(--card-bg);
+      border-color: var(--card-border); position: relative; top: 1px;
+    }
+
+    .btn {
+      background: var(--accent); color: white; border: none; padding: 8px 14px; border-radius: 8px;
+      cursor: pointer; font-size: 0.88rem; font-weight: 500; display: inline-flex; align-items: center;
+      gap: 6px; text-decoration: none; transition: all 0.2s;
+    }
+    .btn:hover { background: var(--accent-hover); }
+    .btn:active { transform: scale(0.98); }
+    .btn-secondary { background: rgba(255, 255, 255, 0.06); border: 1px solid var(--card-border); color: var(--text); }
+    .btn-secondary:hover { background: rgba(255, 255, 255, 0.12); }
+    .btn.active-view { background: linear-gradient(135deg, #2563eb, #7c3aed); border: 1px solid rgba(147, 197, 253, 0.3); }
+
+    /* Apartment selector */
+    .apartment-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    .ap-pill {
+      padding: 7px 16px; border-radius: 9999px; font-size: 0.88rem; font-weight: 600; cursor: pointer;
+      background: rgba(255, 255, 255, 0.05); border: 1px solid var(--card-border); color: var(--text-muted); transition: all 0.15s;
+    }
+    .ap-pill:hover { color: var(--text); background: rgba(255, 255, 255, 0.1); }
+    .ap-pill.active { background: var(--badge-bg); border-color: rgba(96, 165, 250, 0.4); color: var(--badge-text); }
+
+    /* Viewer */
+    .viewer-card {
+      background: var(--card-bg); backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border); border-radius: 12px; overflow: hidden;
+    }
+
+    .viewer-toolbar {
+      display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+      padding: 14px 18px; border-bottom: 1px solid var(--card-border);
+    }
+    .plan-meta { font-size: 0.86rem; color: var(--text-muted); display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+    .plan-meta strong { color: var(--text); font-weight: 600; }
+    .toolbar-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    #canvas-wrap { position: relative; height: calc(100vh - 330px); min-height: 440px; background: #0d1322; }
+    #canvas-wrap canvas { display: block; }
+
+    .viewer-hint {
+      position: absolute; bottom: 10px; left: 12px; font-size: 0.75rem; color: rgba(255,255,255,0.4);
+      background: rgba(0,0,0,0.35); padding: 4px 10px; border-radius: 6px; pointer-events: none;
+    }
+
+    .pick-bar {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      padding: 10px 18px; border-top: 1px solid var(--card-border); background: rgba(255,255,255,0.02);
+    }
+    .pick-label { font-size: 0.8rem; color: var(--text-muted); }
+    #pick-input {
+      flex: 1; min-width: 180px; max-width: 340px;
+      background: rgba(0, 0, 0, 0.35); border: 1px solid var(--card-border); border-radius: 6px;
+      color: var(--badge-text); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.85rem; padding: 7px 10px;
+    }
+    #pick-copy {
+      background: rgba(255, 255, 255, 0.06); border: 1px solid var(--card-border); color: var(--text);
+      border-radius: 6px; padding: 7px 11px; cursor: pointer; font-size: 0.85rem; transition: all 0.15s;
+    }
+    #pick-copy:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); }
+    #pick-copy:disabled { opacity: 0.4; cursor: default; }
+
+    .tooltip {
+      position: absolute; display: none; pointer-events: none; z-index: 10;
+      background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(96, 165, 250, 0.4);
+      color: var(--text); font-size: 0.78rem; padding: 5px 10px; border-radius: 6px; max-width: 280px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+    }
+
+    .legend { display: flex; gap: 18px; flex-wrap: wrap; padding: 12px 18px; border-top: 1px solid var(--card-border); font-size: 0.8rem; color: var(--text-muted); }
+    .legend span { display: inline-flex; align-items: center; gap: 7px; }
+    .swatch { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+
+    .footer {
+      display: flex; justify-content: space-between; color: var(--text-muted); font-size: 0.85rem;
+      padding-top: 16px; margin-top: 20px; flex-wrap: wrap; gap: 12px; border-top: 1px solid var(--card-border);
+    }
+    .api-links a { color: var(--badge-text); text-decoration: none; margin-left: 14px; }
+    .api-links a:hover { text-decoration: underline; }
+
+    #empty-msg {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      color: var(--text-muted); font-size: 1rem; pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="title-group">
+        <h1>🏠 Grima — Apartment Plans <span class="badge badge-version" id="version-badge">v--</span></h1>
+        <p>3D floor-plan viewer · one plan per apartment · data from <code>/api/apartments</code></p>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <a href="/" class="btn btn-secondary">📡 Dashboard</a>
+        <a href="/docs" class="btn btn-secondary">📖 API Docs</a>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <a href="/" class="tab">📡 Dashboard</a>
+      <a href="/apartments" class="tab active">🏠 Apartment Plans</a>
+    </nav>
+
+    <!-- Apartment selector -->
+    <div class="apartment-bar" id="apartment-bar">
+      <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">APARTMENT:</span>
+      <span id="ap-pills" style="display: flex; gap: 8px; flex-wrap: wrap;">Loading plans…</span>
+    </div>
+
+    <!-- 3D Viewer -->
+    <div class="viewer-card">
+      <div class="viewer-toolbar">
+        <div class="plan-meta" id="plan-meta">Loading…</div>
+        <div class="toolbar-btns">
+          <button class="btn btn-secondary active-view" id="btn-3d" onclick="setView('3d')">🎥 3D View</button>
+          <button class="btn btn-secondary" id="btn-top" onclick="setView('top')">⬇ Top View</button>
+          <button class="btn btn-secondary" id="btn-low" onclick="toggleLowWalls()">📏 ⅓ Walls</button>
+          <button class="btn btn-secondary" onclick="resetCamera()">↺ Reset</button>
+          <button class="btn" id="btn-obj" onclick="downloadObj()">⬇ Download .obj</button>
+        </div>
+      </div>
+
+      <div id="canvas-wrap">
+        <div class="tooltip" id="tooltip"></div>
+        <div class="viewer-hint">Drag to orbit · Scroll to zoom · Right-drag to pan · Hover walls for labels</div>
+        <div id="empty-msg" style="display:none;">No wall data defined for this apartment yet — add segments to plans.json</div>
+      </div>
+
+      <div class="pick-bar">
+        <span class="pick-label">📍 Click a spot in the 3D view to pick its plan coordinates</span>
+        <input id="pick-input" readonly placeholder="x, y (m) — click the floor or a wall" />
+        <button id="pick-copy" title="Copy coordinates" disabled>📋</button>
+      </div>
+
+      <div class="legend">
+        <span><i class="swatch" style="background:#cbd5e1;"></i> Wall / perimeter</span>
+        <span><i class="swatch" style="background:rgba(96,165,250,0.55);"></i> Window</span>
+        <span><i class="swatch" style="background:rgba(251,191,36,0.55);"></i> Door / portal</span>
+        <span><i class="swatch" style="background:#d6c7a1;"></i> Stone frame / archway</span>
+        <span><i class="swatch" style="background:#1f2937; border:1px solid #475569;"></i> Floor slab (1 m grid)</span>
+      </div>
+    </div>
+
+    <p id="plan-desc" style="color: var(--text-muted); font-size: 0.88rem; margin-top: 14px; line-height: 1.6;"></p>
+
+    <div class="footer">
+      <div>Grima · Apartment Plans</div>
+      <div class="api-links">
+        <a href="/docs"><strong>📖 API Docs</strong></a>
+        <a href="/api/apartments" target="_blank">/api/apartments</a>
+        <a href="/docs/openapi.json" target="_blank">OpenAPI Spec</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="/vendor/three.min.js"></script>
+  <script src="/vendor/OrbitControls.js"></script>
+  <script>
+    'use strict';
+
+    // ---------------- State ----------------
+    let apartments = [];
+    let current = null;          // currently selected apartment plan object
+    let planGroup = null;        // THREE.Group holding the current plan
+    let hoverMeshes = [];        // meshes eligible for tooltip raycasting
+    let pickMeshes = [];         // meshes eligible for point picking (floor + walls)
+    let planBounds = { W: 10, D: 10 };
+    let wallScale = 1;           // 1 = full wall height, 1/3 = low walls to see the interior
+
+    // three.js singletons
+    const wrap = document.getElementById('canvas-wrap');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0d1322);
+    scene.fog = new THREE.Fog(0x0d1322, 40, 90);
+
+    const camera = new THREE.PerspectiveCamera(50, wrap.clientWidth / wrap.clientHeight, 0.1, 300);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    wrap.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.maxPolarAngle = Math.PI * 0.495;
+    controls.minDistance = 1;
+    controls.maxDistance = 60;
+
+    // Lights
+    scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+    const hemi = new THREE.HemisphereLight(0xbfd4ff, 0x1a2030, 0.35);
+    scene.add(hemi);
+    const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+    dir.position.set(12, 16, 8);
+    dir.castShadow = true;
+    dir.shadow.mapSize.set(2048, 2048);
+    dir.shadow.camera.left = -15; dir.shadow.camera.right = 15;
+    dir.shadow.camera.top = 15; dir.shadow.camera.bottom = -15;
+    scene.add(dir);
+
+    // ---------------- Helpers ----------------
+    function makeTextSprite(text, { color = '#e2e8f0', scale = 0.011 } = {}) {
+      const pad = 18, fontPx = 46;
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      ctx.font = `600 ${fontPx}px -apple-system, "Segoe UI", Roboto, sans-serif`;
+      const tw = Math.ceil(ctx.measureText(text).width);
+      canvas.width = tw + pad * 2;
+      canvas.height = fontPx + pad * 1.4;
+      const c2 = canvas.getContext('2d');
+      c2.font = `600 ${fontPx}px -apple-system, "Segoe UI", Roboto, sans-serif`;
+      c2.fillStyle = 'rgba(10, 15, 30, 0.55)';
+      roundRect(c2, 0, 0, canvas.width, canvas.height, 14);
+      c2.fill();
+      c2.fillStyle = color;
+      c2.textBaseline = 'middle';
+      c2.fillText(text, pad, canvas.height / 2 + 2);
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.anisotropy = 4;
+      const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+      const sprite = new THREE.Sprite(mat);
+      sprite.scale.set(canvas.width * scale, canvas.height * scale, 1);
+      return sprite;
+    }
+
+    function roundRect(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
+
+    // 1 m grid texture covering a w×d meter area (used as floor map for polygon footprints)
+    function makeGridTexture(w, d) {
+      const px = 40;
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(2, Math.round(w * px));
+      canvas.height = Math.max(2, Math.round(d * px));
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#151b2c';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.lineWidth = 1;
+      for (let x = 0; x <= w + 0.001; x += 1) {
+        const X = Math.round(x * px) + 0.5;
+        ctx.strokeStyle = Math.abs(x - Math.round(x)) < 0.001 && x % 5 === 0 ? 'rgba(96, 140, 200, 0.5)' : 'rgba(96, 140, 200, 0.22)';
+        ctx.beginPath(); ctx.moveTo(X, 0); ctx.lineTo(X, canvas.height); ctx.stroke();
+      }
+      for (let y = 0; y <= d + 0.001; y += 1) {
+        const Y = Math.round(y * px) + 0.5;
+        ctx.strokeStyle = Math.abs(y - Math.round(y)) < 0.001 && y % 5 === 0 ? 'rgba(96, 140, 200, 0.5)' : 'rgba(96, 140, 200, 0.22)';
+        ctx.beginPath(); ctx.moveTo(0, Y); ctx.lineTo(canvas.width, Y); ctx.stroke();
+      }
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.anisotropy = 8;
+      return tex;
+    }
+
+    function polygonArea(pts) {
+      let s = 0;
+      for (let i = 0; i < pts.length; i++) {
+        const [x1, y1] = pts[i], [x2, y2] = pts[(i + 1) % pts.length];
+        s += x1 * y2 - x2 * y1;
+      }
+      return Math.abs(s) / 2;
+    }
+
+    // ---------------- Plan building ----------------
+    function buildPlan(ap, opts = {}) {
+      if (planGroup) {
+        scene.remove(planGroup);
+        planGroup.traverse(o => {
+          if (o.geometry) o.geometry.dispose();
+          if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); }
+        });
+      }
+      hoverMeshes = [];
+      pickMeshes = [];
+
+      const g = new THREE.Group();
+      planGroup = g;
+      const H = (ap.wallHeight || 1.13) * wallScale;
+      const T = ap.wallThickness || 0.2;
+      const HT = T / 2;
+
+      // Perimeter polygon support (real footprint) vs legacy bounding-box plans
+      const hasPerimeter = Array.isArray(ap.perimeter) && ap.perimeter.length >= 3;
+      let W = (ap.footprint && ap.footprint.width) || 10;
+      let D = (ap.footprint && ap.footprint.depth) || 10;
+      let pMinX = 0, pMinZ = 0;
+      if (hasPerimeter) {
+        let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+        for (const [x, y] of ap.perimeter) {
+          minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+          minZ = Math.min(minZ, y); maxZ = Math.max(maxZ, y);
+        }
+        pMinX = minX; pMinZ = minZ;
+        W = maxX - minX; D = maxZ - minZ;
+      }
+      planBounds = { W, D };
+
+      const wallMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.85, metalness: 0.05 });
+      const winMat = new THREE.MeshStandardMaterial({ color: 0x60a5fa, transparent: true, opacity: 0.42, roughness: 0.3, metalness: 0.1, depthWrite: false });
+      const doorMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.42, roughness: 0.5, depthWrite: false });
+      const stoneMat = new THREE.MeshStandardMaterial({ color: 0xd6c7a1, roughness: 0.95, metalness: 0 });
+
+      if (hasPerimeter) {
+        // Polygon floor — the actual footprint shape, with a 1 m grid texture
+        const shape = new THREE.Shape();
+        ap.perimeter.forEach(([x, y], i) => (i === 0 ? shape.moveTo(x, y) : shape.lineTo(x, y)));
+        shape.closePath();
+        const floorGeo = new THREE.ShapeGeometry(shape);
+        floorGeo.rotateX(Math.PI / 2); // plan (x, y) -> world (x, 0, z)
+        const pos = floorGeo.attributes.position;
+        const uv = floorGeo.attributes.uv;
+        for (let i = 0; i < pos.count; i++) uv.setXY(i, (pos.getX(i) - pMinX) / W, (pos.getZ(i) - pMinZ) / D);
+        const floor = new THREE.Mesh(floorGeo, new THREE.MeshStandardMaterial({
+          map: makeGridTexture(W, D), roughness: 0.95, side: THREE.DoubleSide
+        }));
+        floor.receiveShadow = true;
+        g.add(floor); pickMeshes.push(floor);
+
+        // Extruded perimeter walls — one box per edge of the polygon
+        const pts = ap.perimeter;
+        for (let i = 0; i < pts.length; i++) {
+          const [x1, y1] = pts[i];
+          const [x2, y2] = pts[(i + 1) % pts.length];
+          const dx = x2 - x1, dz = y2 - y1;
+          const len = Math.hypot(dx, dz);
+          const m = new THREE.Mesh(new THREE.BoxGeometry(len, H, T), wallMat);
+          m.position.set((x1 + x2) / 2, H / 2, (y1 + y2) / 2);
+          m.rotation.y = -Math.atan2(dz, dx);
+          m.castShadow = true; m.receiveShadow = true;
+          m.userData.label = `Perimeter ${i + 1}: (${x1}, ${y1}) → (${x2}, ${y2}) · ${len.toFixed(2)} m`;
+          g.add(m); hoverMeshes.push(m); pickMeshes.push(m);
+        }
+
+        // Top edge outline — shows the extrusion height without blocking the top view
+        const loop = new THREE.BufferGeometry().setFromPoints(
+          pts.map(([x, y]) => new THREE.Vector3(x, H + 0.015, y))
+        );
+        g.add(new THREE.LineLoop(loop, new THREE.LineBasicMaterial({ color: 0x64748b, transparent: true, opacity: 0.5 })));
+      } else {
+        // Legacy plans without a perimeter: rectangular slab + full grid
+        const floor = new THREE.Mesh(
+          new THREE.BoxGeometry(W + 0.6, 0.12, D + 0.6),
+          new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.95 })
+        );
+        floor.position.set(W / 2, -0.06, D / 2);
+        floor.receiveShadow = true;
+        g.add(floor); pickMeshes.push(floor);
+
+        const gridPts = [];
+        for (let x = 0; x <= W + 0.001; x += 1) gridPts.push(x, 0.004, 0, x, 0.004, D);
+        for (let z = 0; z <= D + 0.001; z += 1) gridPts.push(0, 0.004, z, W, 0.004, z);
+        const gridGeo = new THREE.BufferGeometry();
+        gridGeo.setAttribute('position', new THREE.Float32BufferAttribute(gridPts, 3));
+        g.add(new THREE.LineSegments(gridGeo, new THREE.LineBasicMaterial({ color: 0x3b4a63, transparent: true, opacity: 0.55 })));
+      }
+
+      // Walls — horizontal segments (x1, x2, y)
+      for (const [x1, x2, y, label] of (ap.horizontalWalls || [])) {
+        const m = new THREE.Mesh(new THREE.BoxGeometry(x2 - x1, H, T), wallMat);
+        m.position.set((x1 + x2) / 2, H / 2, y);
+        m.castShadow = true; m.receiveShadow = true;
+        m.userData.label = label || `Wall (h) x ${x1}→${x2} @ y ${y}`;
+        g.add(m); hoverMeshes.push(m); pickMeshes.push(m);
+      }
+      // Walls — vertical segments (y1, y2, x)
+      for (const [y1, y2, x, label] of (ap.verticalWalls || [])) {
+        const m = new THREE.Mesh(new THREE.BoxGeometry(T, H, y2 - y1), wallMat);
+        m.position.set(x, H / 2, (y1 + y2) / 2);
+        m.castShadow = true; m.receiveShadow = true;
+        m.userData.label = label || `Wall (v) y ${y1}→${y2} @ x ${x}`;
+        g.add(m); hoverMeshes.push(m); pickMeshes.push(m);
+      }
+
+      // Openings (windows / doors / stone frames) — always at FULL wall height,
+      // unaffected by the 1/3 low-wall view
+      const Hbase = ap.wallHeight || 1.13;
+      for (const o of (ap.openings || [])) {
+        const kind = o.type === 'window' ? 'win' : o.type === 'archway' ? 'arch' : 'door';
+        const len = o.to - o.from;
+        const mid = (o.from + o.to) / 2;
+        const oMat = kind === 'win' ? winMat : kind === 'arch' ? stoneMat : doorMat;
+        const addOpen = (geo, x, y, z, label) => {
+          const m = new THREE.Mesh(geo, oMat);
+          m.position.set(x, y, z);
+          m.castShadow = true; m.receiveShadow = true;
+          m.userData.label = label;
+          g.add(m); hoverMeshes.push(m); pickMeshes.push(m);
+        };
+        if (kind === 'arch') {
+          // Stone frame: two jambs + lintel, open in the middle (walk-through)
+          const jw = 0.15, lh = 0.25, d = T * 1.1;
+          const label = `Stone frame: ${o.label || ''}`;
+          if (o.axis === 'h') {
+            addOpen(new THREE.BoxGeometry(jw, Hbase, d), o.from + jw / 2, Hbase / 2, o.pos, label);
+            addOpen(new THREE.BoxGeometry(jw, Hbase, d), o.to - jw / 2, Hbase / 2, o.pos, label);
+            addOpen(new THREE.BoxGeometry(Math.max(0.1, len - 2 * jw), lh, d), mid, Hbase - lh / 2, o.pos, label);
+          } else {
+            addOpen(new THREE.BoxGeometry(d, Hbase, jw), o.pos, Hbase / 2, o.from + jw / 2, label);
+            addOpen(new THREE.BoxGeometry(d, Hbase, jw), o.pos, Hbase / 2, o.to - jw / 2, label);
+            addOpen(new THREE.BoxGeometry(d, lh, Math.max(0.1, len - 2 * jw)), o.pos, Hbase - lh / 2, mid, label);
+          }
+        } else {
+          // window: sill at 0.25H, top flush with wall top · door: near-full height with lintel
+          const hgt = Hbase * (kind === 'win' ? 0.75 : 0.92);
+          const cy = Hbase * (kind === 'win' ? 0.625 : 0.46);
+          const label = `${kind === 'win' ? 'Window' : 'Door'}: ${o.label || ''}`;
+          if (o.axis === 'h') {
+            addOpen(new THREE.BoxGeometry(len, hgt, T * 0.55), mid, cy, o.pos, label);
+          } else {
+            addOpen(new THREE.BoxGeometry(T * 0.55, hgt, len), o.pos, cy, mid, label);
+          }
+        }
+      }
+
+      // Room labels (floating sprites)
+      for (const r of (ap.rooms || [])) {
+        const s = makeTextSprite(r.name);
+        s.position.set(r.center[0], H + 0.55, r.center[1]);
+        g.add(s);
+      }
+
+      // Center the plan at the origin
+      g.position.set(-W / 2, 0, -D / 2);
+      scene.add(g);
+
+      document.getElementById('empty-msg').style.display =
+        ((ap.horizontalWalls || []).length + (ap.verticalWalls || []).length) ? 'none' : 'flex';
+
+      // Meta strip
+      const nH = (ap.horizontalWalls || []).length, nV = (ap.verticalWalls || []).length;
+      const areaSpan = hasPerimeter
+        ? `<span>Area: <strong>≈ ${polygonArea(ap.perimeter).toFixed(1)} m²</strong></span>`
+        : '';
+      document.getElementById('plan-meta').innerHTML =
+        `<span><strong>${escapeHtml(ap.name)}</strong></span>` +
+        `<span>Footprint: <strong>${W} m × ${D} m</strong></span>` + areaSpan +
+        `<span>Wall height: <strong>${wallScale < 1 ? H.toFixed(2) : H} m</strong>${wallScale < 1 ? ' (⅓ view)' : ''}</span>` +
+        `<span>Wall thickness: <strong>${T} m</strong></span>` +
+        (hasPerimeter
+          ? `<span><strong>${ap.perimeter.length}</strong> perimeter edges · <strong>${(ap.openings || []).length}</strong> openings</span>`
+          : `<span><strong>${nH + nV}</strong> wall segments · <strong>${(ap.openings || []).length}</strong> openings</span>`);
+      document.getElementById('plan-desc').textContent = ap.description || '';
+
+      if (!opts.keepCamera) resetCamera();
+    }
+
+    // ---------------- Camera views ----------------
+    function planSize() {
+      const W = (current && current.footprint && current.footprint.width) || 10;
+      const D = (current && current.footprint && current.footprint.depth) || 10;
+      return Math.max(W, D);
+    }
+
+    function resetCamera() {
+      if (!current) return;
+      const s = planSize();
+      camera.position.set(s * 0.62, s * 0.85, s * 1.12);
+      controls.target.set(0, 0.3, 0);
+      controls.update();
+    }
+
+    function setView(mode) {
+      if (!current) return;
+      const s = planSize();
+      if (mode === 'top') {
+        camera.position.set(0, s * 1.35, 0.02);
+      } else {
+        camera.position.set(s * 0.62, s * 0.85, s * 1.12);
+      }
+      controls.target.set(0, 0.3, 0);
+      controls.update();
+      document.getElementById('btn-3d').classList.toggle('active-view', mode === '3d');
+      document.getElementById('btn-top').classList.toggle('active-view', mode === 'top');
+    }
+
+    function toggleLowWalls() {
+      if (!current) return;
+      wallScale = wallScale === 1 ? 1 / 3 : 1;
+      const btn = document.getElementById('btn-low');
+      btn.classList.toggle('active-view', wallScale < 1);
+      btn.textContent = wallScale < 1 ? '📏 Full Walls' : '📏 ⅓ Walls';
+      buildPlan(current, { keepCamera: true });
+    }
+
+    // ---------------- .obj export ----------------
+    function buildObjText(ap) {
+      // Perimeter plans: floor/ceiling N-gons + outer wall quads (Y-up, matches the reference sketch)
+      if (Array.isArray(ap.perimeter) && ap.perimeter.length >= 3) {
+        const pts = ap.perimeter, N = pts.length;
+        const H = ap.wallHeight || 2.5;
+        let out = `# ${ap.name} - Rough Perimeter Layout\n# Extruded to ${H}m height\n\n`;
+        out += '# Floor Vertices (Y = 0)\n';
+        for (const [x, y] of pts) out += `v ${x.toFixed(4)} 0.0000 ${y.toFixed(4)}\n`;
+        out += `\n# Ceiling Vertices (Y = ${H})\n`;
+        for (const [x, y] of pts) out += `v ${x.toFixed(4)} ${H.toFixed(4)} ${y.toFixed(4)}\n`;
+        out += '\n# Outer Walls\n';
+        for (let i = 0; i < N; i++) {
+          const a = i + 1, b = ((i + 1) % N) + 1;
+          out += `f ${a} ${b} ${b + N} ${a + N}\n`;
+        }
+        out += '\n# Floor and Ceiling (N-gons)\n';
+        out += 'f ' + Array.from({ length: N }, (_, k) => N - k).join(' ') + '\n';
+        out += 'f ' + Array.from({ length: N }, (_, k) => N + 1 + k).join(' ') + '\n';
+        return out;
+      }
+
+      // Legacy wall-segment plans: box per segment (mirrors the original Python sketch)
+      const HEIGHT = ap.wallHeight || 1.13;
+      const THICKNESS = ap.wallThickness || 0.2;
+      const HALF_THICK = THICKNESS / 2.0;
+      const vertices = [], faces = [];
+      let v_idx = 1;
+
+      function add_box(x_min, x_max, y_min, y_max) {
+        vertices.push(
+          [x_min, y_min, 0], [x_max, y_min, 0], [x_max, y_max, 0], [x_min, y_max, 0],
+          [x_min, y_min, HEIGHT], [x_max, y_min, HEIGHT], [x_max, y_max, HEIGHT], [x_min, y_max, HEIGHT]
+        );
+        faces.push(
+          [v_idx, v_idx + 1, v_idx + 2, v_idx + 3],
+          [v_idx + 4, v_idx + 7, v_idx + 6, v_idx + 5],
+          [v_idx, v_idx + 4, v_idx + 5, v_idx + 1],
+          [v_idx + 1, v_idx + 5, v_idx + 6, v_idx + 2],
+          [v_idx + 2, v_idx + 6, v_idx + 7, v_idx + 3],
+          [v_idx + 3, v_idx + 7, v_idx + 4, v_idx]
+        );
+        v_idx += 8;
+      }
+
+      for (const [x1, x2, y] of (ap.horizontalWalls || [])) add_box(x1, x2, y - HALF_THICK, y + HALF_THICK);
+      for (const [y1, y2, x] of (ap.verticalWalls || [])) add_box(x - HALF_THICK, x + HALF_THICK, y1, y2);
+
+      let out = `# ${ap.name} — Apartment Floor Plan 3D Layout (generated by Grima)\n`;
+      for (const v of vertices) out += `v ${v[0].toFixed(3)} ${v[1].toFixed(3)} ${v[2].toFixed(3)}\n`;
+      for (const f of faces) out += `f ${f[0]} ${f[1]} ${f[2]} ${f[3]}\n`;
+      return out;
+    }
+
+    function downloadObj() {
+      if (!current) return;
+      const blob = new Blob([buildObjText(current)], { type: 'model/obj' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${current.id}_layout.obj`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    }
+
+    // ---------------- Tooltip (hover walls) ----------------
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    const tooltip = document.getElementById('tooltip');
+    let pointerDirty = false;
+
+    renderer.domElement.addEventListener('pointermove', (e) => {
+      const r = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+      pointer.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+      tooltip.style.left = (e.clientX - r.left + 14) + 'px';
+      tooltip.style.top = (e.clientY - r.top + 10) + 'px';
+      pointerDirty = true;
+    });
+    renderer.domElement.addEventListener('pointerleave', () => { tooltip.style.display = 'none'; });
+
+    function updateTooltip() {
+      if (!pointerDirty || hoverMeshes.length === 0) return;
+      pointerDirty = false;
+      raycaster.setFromCamera(pointer, camera);
+      const hits = raycaster.intersectObjects(hoverMeshes, false);
+      if (hits.length > 0 && hits[0].object.userData.label) {
+        tooltip.textContent = hits[0].object.userData.label;
+        tooltip.style.display = 'block';
+      } else {
+        tooltip.style.display = 'none';
+      }
+    }
+
+    // ---------------- Point picking (click 3D view → plan coordinates) ----------------
+    const pickInput = document.getElementById('pick-input');
+    const pickCopy = document.getElementById('pick-copy');
+    let downPos = null;
+
+    renderer.domElement.addEventListener('pointerdown', (e) => { downPos = [e.clientX, e.clientY]; });
+    renderer.domElement.addEventListener('pointerup', (e) => {
+      if (!downPos || e.button !== 0) return;
+      const moved = Math.hypot(e.clientX - downPos[0], e.clientY - downPos[1]);
+      downPos = null;
+      if (moved > 5) return; // was an orbit drag, not a pick
+      const r = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+      pointer.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      const hits = raycaster.intersectObjects(pickMeshes, false);
+      if (hits.length > 0) {
+        // world → plan coords (the plan group is offset by -W/2, -D/2)
+        const px = hits[0].point.x + planBounds.W / 2;
+        const py = hits[0].point.z + planBounds.D / 2;
+        pickInput.value = `x ${px.toFixed(2)} · y ${py.toFixed(2)} m`;
+        pickCopy.dataset.raw = `${px.toFixed(2)}, ${py.toFixed(2)}`;
+        pickCopy.disabled = false;
+      }
+    });
+
+    pickCopy.addEventListener('click', async () => {
+      if (!pickCopy.dataset.raw) return;
+      try { await navigator.clipboard.writeText(pickCopy.dataset.raw); }
+      catch (err) {
+        const t = document.createElement('textarea');
+        t.value = pickCopy.dataset.raw;
+        document.body.appendChild(t); t.select();
+        document.execCommand('copy'); t.remove();
+      }
+      pickCopy.textContent = '✓';
+      setTimeout(() => { pickCopy.textContent = '📋'; }, 900);
+    });
+
+    // ---------------- Render loop ----------------
+    (function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      updateTooltip();
+      renderer.render(scene, camera);
+    })();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = wrap.clientWidth / wrap.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+    });
+
+    // ---------------- Data loading ----------------
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function selectApartment(id) {
+      current = apartments.find(a => a.id === id) || null;
+      document.querySelectorAll('.ap-pill').forEach(p => p.classList.toggle('active', p.dataset.id === id));
+      if (current) buildPlan(current);
+    }
+
+    async function loadPlans() {
+      try {
+        const res = await fetch('/api/apartments');
+        const data = await res.json();
+        apartments = data.apartments || [];
+        if (data.version) document.getElementById('version-badge').textContent = 'v' + data.version;
+
+        const pills = document.getElementById('ap-pills');
+        if (apartments.length === 0) {
+          pills.innerHTML = '<span style="color: var(--text-muted); font-size: 0.85rem;">No apartments defined yet — add one to plans.json</span>';
+          return;
+        }
+        pills.innerHTML = apartments.map(a =>
+          `<button class="ap-pill" data-id="${escapeHtml(a.id)}" onclick="selectApartment('${escapeHtml(a.id)}')">${escapeHtml(a.name)}</button>`
+        ).join('');
+        selectApartment(apartments[0].id);
+      } catch (e) {
+        document.getElementById('ap-pills').innerHTML =
+          `<span style="color: var(--danger); font-size: 0.85rem;">Failed to load /api/apartments — ${escapeHtml(e.message)}</span>`;
+      }
+    }
+
+    loadPlans();
+  </script>
+</body>
+</html>

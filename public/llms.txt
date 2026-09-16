@@ -85,20 +85,27 @@ Minimal app-friendly presence feed from the Shelly mmWave sensor:
 - `numObjects`: Detected object count (0 = empty).
 - `zoneName`, `presentSince`, `updatedAt`, `online`, `device` (model), `ip`.
 
-### 8. `GET /api/events/stream` (SSE)
+### 8. `GET /api/apartments`
+Returns all configured apartment floor plans from `plans.json` — each apartment has its own plan:
+- `units`: coordinate unit (`"meters"`).
+- `count`: number of apartments.
+- `apartments[]`: each with `id`, `name`, `description`, `footprint` (width/depth in m), `wallHeight`, `wallThickness`, optional `perimeter` (closed polygon of `[x, y]` points in meters — when present the floor is the exact polygon shape and walls extrude along each edge, e.g. Sebastiana's 75 m² outline), `horizontalWalls` (centerline segments `[x1, x2, y, label?]`), `verticalWalls` (`[y1, y2, x, label?]`), `openings[]` (windows/doors in wall gaps: type, axis h/v, pos, from, to, label) and `rooms[]` (name + label center `[x, y]`).
+- Geometry convention: walls are boxes on the segment centerlines, floor at Z=0 — identical to the exported `.obj` layout. Rendered in the **Apartment Plans** tab of the web UI (`/apartments`) with a three.js 3D viewer (orbit / top view / .obj download).
+
+### 9. `GET /api/events/stream` (SSE)
 Live Server-Sent Events stream combining all Grima sources in real time:
 - **Shelly sensor events** (`source: "shelly"`): `presence_detected`, `presence_cleared`, `illuminance_changed`, `device_online`, `device_offline`, `track` — each with zone, object count, and device model.
 - **LAN device transitions** (`source: "network"`): `device_connected` / `device_disconnected` detected between router ARP scans (a device must be absent for ~30s of consecutive sweeps before a disconnect fires, debouncing ARP flapping). Payload includes ip, mac, name, vendor, deviceClass, medium.
 - On connect you immediately receive a `stream_connected` event with the current presence state and the 20 most recent events, so no state is missed. A comment-line heartbeat arrives every 25s.
 - Each SSE frame: `event: <type>` + `data: { ts, source, type, detail }` (JSON).
 
-### 9. `GET /api/events`
+### 10. `GET /api/events`
 Returns the last 200 published events (newest first) from both sources — for clients that cannot hold a persistent SSE connection.
 
-### 10. `POST /api/scan`
+### 11. `POST /api/scan`
 Forces an immediate active ARP sweep and Wi-Fi scan, returning updated data.
 
-### 11. `GET /api/version`
+### 12. `GET /api/version`
 Returns Grima's semantic version and package metadata.
 
 ## What AI Agents & LLMs Can Build With Grima

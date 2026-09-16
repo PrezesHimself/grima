@@ -1,0 +1,44 @@
+{
+  "units": "meters",
+  "apartments": [
+    {
+      "id": "sebastiana",
+      "name": "Sebastiana (75 m²)",
+      "description": "Traced 1:1 from the SVG floor plan: closed 7-vertex perimeter + 7 interior wall segments, extruded to 2.5 m height. Single uniform scale anchored at drawing depth 544 px = 13.0 m (~2.39 cm/px), origin at outline top-left; width works out to 7.15 m. Room names taken from the source labels (areas excluded as unreliable). One opening: stone-framed entrance (no door) between kitchen and living room, centered on the shared wall segment.",
+      "footprint": { "width": 7.15, "depth": 13.0 },
+      "wallHeight": 2.5,
+      "wallThickness": 0.2,
+      "perimeter": [
+        [0.0, 13.0],
+        [0.0, 7.38],
+        [2.87, 7.38],
+        [2.87, 1.27],
+        [4.13, 0.0],
+        [7.15, 0.0],
+        [7.15, 13.0]
+      ],
+      "horizontalWalls": [
+        [2.87, 7.15, 2.51],
+        [2.87, 5.81, 3.7],
+        [2.87, 5.81, 5.93],
+        [2.87, 7.15, 7.38],
+        [0.0, 3.13, 9.65]
+      ],
+      "verticalWalls": [
+        [2.51, 7.38, 5.81],
+        [7.38, 13.0, 3.13]
+      ],
+      "openings": [
+        { "type": "archway", "axis": "v", "from": 8.0, "to": 9.0, "pos": 3.13, "label": "kitchen ↔ living room (no door)" }
+      ],
+      "rooms": [
+        { "name": "TERRACE", "center": [5.09, 1.22] },
+        { "name": "HALL", "center": [4.33, 3.13] },
+        { "name": "STUDY", "center": [4.33, 4.8] },
+        { "name": "KITCHEN", "center": [1.55, 8.51] },
+        { "name": "BEDROOM", "center": [1.55, 11.3] },
+        { "name": "LIVING ROOM", "center": [5.14, 10.18] }
+      ]
+    }
+  ]
+}

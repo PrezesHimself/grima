@@ -162,8 +162,12 @@
         "summary": "Shelly device webhook receiver (internal)",
         "description": "Push endpoint registered on the Shelly device itself (Webhook.Create hooks for illuminance.measurement / illuminance.change). The sensor POSTs light-level events here in real time; Grima applies them to its state and re-broadcasts them on the event stream. Not meant for external callers.",
         "responses": {
-          "200": { "description": "Event accepted" },
-          "400": { "description": "Invalid JSON payload" }
+          "200": {
+            "description": "Event accepted"
+          },
+          "400": {
+            "description": "Invalid JSON payload"
+          }
         }
       }
     },
@@ -197,10 +201,14 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "count": { "type": "integer" },
+                    "count": {
+                      "type": "integer"
+                    },
                     "events": {
                       "type": "array",
-                      "items": { "$ref": "#/components/schemas/GrimaEvent" }
+                      "items": {
+                        "$ref": "#/components/schemas/GrimaEvent"
+                      }
                     }
                   }
                 }
@@ -230,6 +238,24 @@
           }
         }
       }
+    },
+    "/api/apartments": {
+      "get": {
+        "summary": "Get apartment floor plans",
+        "description": "Returns all configured apartment floor plans (wall segments, openings, room labels) from plans.json. Each apartment has its own plan. Used by the /apartments 3D viewer tab; wall geometry is rendered as boxes (height = wallHeight, thickness = wallThickness) with Z=0 at floor level \u2014 identical to the .obj convention.",
+        "responses": {
+          "200": {
+            "description": "Apartment plans",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApartmentsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -237,144 +263,371 @@
       "SpeedTestResult": {
         "type": "object",
         "properties": {
-          "timestamp": { "type": "string", "format": "date-time" },
-          "server": { "type": "string", "example": "Cloudflare Edge (WAW)" },
-          "pingMs": { "type": "number", "example": 5.2 },
-          "minPingMs": { "type": "number", "example": 4.8 },
-          "jitterMs": { "type": "number", "example": 0.4 },
-          "downloadMbps": { "type": "number", "example": 509.21 },
-          "downloadDurationSec": { "type": "number", "example": 0.55 },
-          "uploadMbps": { "type": "number", "example": 181.99 },
-          "uploadDurationSec": { "type": "number", "example": 0.23 },
-          "totalBytesTransferred": { "type": "integer", "example": 40242880 },
-          "totalDurationSeconds": { "type": "number", "example": 1.3 },
-          "status": { "type": "string", "example": "success" }
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "server": {
+            "type": "string",
+            "example": "Cloudflare Edge (WAW)"
+          },
+          "pingMs": {
+            "type": "number",
+            "example": 5.2
+          },
+          "minPingMs": {
+            "type": "number",
+            "example": 4.8
+          },
+          "jitterMs": {
+            "type": "number",
+            "example": 0.4
+          },
+          "downloadMbps": {
+            "type": "number",
+            "example": 509.21
+          },
+          "downloadDurationSec": {
+            "type": "number",
+            "example": 0.55
+          },
+          "uploadMbps": {
+            "type": "number",
+            "example": 181.99
+          },
+          "uploadDurationSec": {
+            "type": "number",
+            "example": 0.23
+          },
+          "totalBytesTransferred": {
+            "type": "integer",
+            "example": 40242880
+          },
+          "totalDurationSeconds": {
+            "type": "number",
+            "example": 1.3
+          },
+          "status": {
+            "type": "string",
+            "example": "success"
+          }
         }
       },
       "StatusResponse": {
         "type": "object",
         "properties": {
-          "app": { "type": "string", "example": "grima" },
-          "version": { "type": "string", "example": "0.3.0" },
+          "app": {
+            "type": "string",
+            "example": "grima"
+          },
+          "version": {
+            "type": "string",
+            "example": "0.3.0"
+          },
           "documentation": {
             "type": "object",
             "properties": {
-              "docsUrl": { "type": "string", "example": "/docs" },
-              "openapiUrl": { "type": "string", "example": "/docs/openapi.json" },
-              "llmsTxtUrl": { "type": "string", "example": "/llms.txt" }
+              "docsUrl": {
+                "type": "string",
+                "example": "/docs"
+              },
+              "openapiUrl": {
+                "type": "string",
+                "example": "/docs/openapi.json"
+              },
+              "llmsTxtUrl": {
+                "type": "string",
+                "example": "/llms.txt"
+              }
             }
           },
-          "timestamp": { "type": "string", "format": "date-time" },
-          "lastSpeedTest": { "$ref": "#/components/schemas/SpeedTestResult" },
-          "shelly": { "$ref": "#/components/schemas/PresenceResponse" },
-          "summary": { "type": "object" },
-          "devices": { "type": "array", "items": { "$ref": "#/components/schemas/Device" } },
-          "wifi": { "$ref": "#/components/schemas/WifiResponse" },
-          "router": { "$ref": "#/components/schemas/RouterResponse" }
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastSpeedTest": {
+            "$ref": "#/components/schemas/SpeedTestResult"
+          },
+          "shelly": {
+            "$ref": "#/components/schemas/PresenceResponse"
+          },
+          "summary": {
+            "type": "object"
+          },
+          "devices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Device"
+            }
+          },
+          "wifi": {
+            "$ref": "#/components/schemas/WifiResponse"
+          },
+          "router": {
+            "$ref": "#/components/schemas/RouterResponse"
+          }
         }
       },
       "Device": {
         "type": "object",
         "properties": {
-          "ip": { "type": "string", "example": "192.168.1.102" },
-          "mac": { "type": "string", "example": "70:3e:97:7e:e6:e2" },
-          "name": { "type": "string", "example": "Pendrive Mi TV (Xiaomi Mi TV Stick)" },
-          "vendor": { "type": "string", "example": "Xiaomi (Iton Tech)" },
-          "type": { "type": "string", "example": "Smart TV / Streaming" },
-          "medium": { "type": "string", "enum": ["Wi-Fi", "Wired Ethernet (enp1s0)", "Router / AP"] },
+          "ip": {
+            "type": "string",
+            "example": "192.168.1.102"
+          },
+          "mac": {
+            "type": "string",
+            "example": "70:3e:97:7e:e6:e2"
+          },
+          "name": {
+            "type": "string",
+            "example": "Pendrive Mi TV (Xiaomi Mi TV Stick)"
+          },
+          "vendor": {
+            "type": "string",
+            "example": "Xiaomi (Iton Tech)"
+          },
+          "type": {
+            "type": "string",
+            "example": "Smart TV / Streaming"
+          },
+          "medium": {
+            "type": "string",
+            "enum": [
+              "Wi-Fi",
+              "Wired Ethernet (enp1s0)",
+              "Router / AP"
+            ]
+          },
           "deviceClass": {
             "type": "string",
             "description": "Automatic device classification derived from MAC randomization detection, IEEE OUI vendor signature, mDNS/DNS-SD service discovery, and SSH port probing.",
-            "enum": ["phone", "laptop", "tv", "iot", "router", "server", "unknown"],
+            "enum": [
+              "phone",
+              "laptop",
+              "tv",
+              "iot",
+              "router",
+              "server",
+              "unknown"
+            ],
             "example": "phone"
           },
           "macRandomized": {
             "type": "boolean",
-            "description": "True when the MAC is locally administered (randomized) — typical of iOS/Android Wi-Fi privacy.",
+            "description": "True when the MAC is locally administered (randomized) \u2014 typical of iOS/Android Wi-Fi privacy.",
             "example": true
           },
-          "classReason": { "type": "string", "example": "Randomized (locally administered) MAC — iOS/Android Wi-Fi privacy" },
-          "latencyMs": { "type": "number", "nullable": true, "example": 1.2 },
-          "state": { "type": "string", "example": "REACHABLE" },
-          "isRouter": { "type": "boolean" },
-          "isLocalHost": { "type": "boolean" }
+          "classReason": {
+            "type": "string",
+            "example": "Randomized (locally administered) MAC \u2014 iOS/Android Wi-Fi privacy"
+          },
+          "latencyMs": {
+            "type": "number",
+            "nullable": true,
+            "example": 1.2
+          },
+          "state": {
+            "type": "string",
+            "example": "REACHABLE"
+          },
+          "isRouter": {
+            "type": "boolean"
+          },
+          "isLocalHost": {
+            "type": "boolean"
+          }
         }
       },
       "DevicesResponse": {
         "type": "object",
         "properties": {
-          "count": { "type": "integer" },
-          "wifiCount": { "type": "integer" },
-          "wiredCount": { "type": "integer" },
+          "count": {
+            "type": "integer"
+          },
+          "wifiCount": {
+            "type": "integer"
+          },
+          "wiredCount": {
+            "type": "integer"
+          },
           "deviceClassCounts": {
             "type": "object",
             "description": "Client devices grouped by detected class (router and local host excluded).",
-            "additionalProperties": { "type": "integer" },
-            "example": { "phone": 1, "laptop": 1, "iot": 2 }
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "example": {
+              "phone": 1,
+              "laptop": 1,
+              "iot": 2
+            }
           },
           "devices": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/Device" }
+            "items": {
+              "$ref": "#/components/schemas/Device"
+            }
           }
         }
       },
       "WifiResponse": {
         "type": "object",
         "properties": {
-          "interface": { "type": "string", "example": "wlp0s12f0" },
-          "state": { "type": "string", "example": "Hardware Available (Dual-band)" },
-          "localAccessPoints": { "type": "array", "items": { "$ref": "#/components/schemas/WifiNetwork" } },
-          "allVisibleNetworks": { "type": "array", "items": { "$ref": "#/components/schemas/WifiNetwork" } }
+          "interface": {
+            "type": "string",
+            "example": "wlp0s12f0"
+          },
+          "state": {
+            "type": "string",
+            "example": "Hardware Available (Dual-band)"
+          },
+          "localAccessPoints": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WifiNetwork"
+            }
+          },
+          "allVisibleNetworks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WifiNetwork"
+            }
+          }
         }
       },
       "WifiNetwork": {
         "type": "object",
         "properties": {
-          "ssid": { "type": "string", "example": "Unknown Network" },
-          "bssid": { "type": "string", "example": "08:8A:F1:5E:5D:BC" },
-          "channel": { "type": "string", "example": "4" },
-          "frequency": { "type": "string", "example": "2427 MHz" },
-          "signalPercent": { "type": "integer", "example": 100 },
-          "signalDbm": { "type": "integer", "example": -50 },
-          "security": { "type": "string", "example": "WPA2" },
-          "rate": { "type": "string", "example": "270 Mbit/s" },
-          "isLocalAp": { "type": "boolean" }
+          "ssid": {
+            "type": "string",
+            "example": "Unknown Network"
+          },
+          "bssid": {
+            "type": "string",
+            "example": "08:8A:F1:5E:5D:BC"
+          },
+          "channel": {
+            "type": "string",
+            "example": "4"
+          },
+          "frequency": {
+            "type": "string",
+            "example": "2427 MHz"
+          },
+          "signalPercent": {
+            "type": "integer",
+            "example": 100
+          },
+          "signalDbm": {
+            "type": "integer",
+            "example": -50
+          },
+          "security": {
+            "type": "string",
+            "example": "WPA2"
+          },
+          "rate": {
+            "type": "string",
+            "example": "270 Mbit/s"
+          },
+          "isLocalAp": {
+            "type": "boolean"
+          }
         }
       },
       "RouterResponse": {
         "type": "object",
         "properties": {
-          "model": { "type": "string", "example": "MERCUSYS AC12G AC1300 Wireless Dual Band Gigabit Router" },
-          "gatewayIp": { "type": "string", "example": "192.168.1.1" },
-          "externalIp": { "type": "string", "example": "176.115.2.218" },
-          "uptimeSeconds": { "type": "integer", "example": 1082000 },
-          "uptimeFormatted": { "type": "string", "example": "12d 12h 33m" },
-          "connectionStatus": { "type": "string", "example": "Connected" },
-          "lastError": { "type": "string", "example": "ERROR_NONE" }
+          "model": {
+            "type": "string",
+            "example": "MERCUSYS AC12G AC1300 Wireless Dual Band Gigabit Router"
+          },
+          "gatewayIp": {
+            "type": "string",
+            "example": "192.168.1.1"
+          },
+          "externalIp": {
+            "type": "string",
+            "example": "176.115.2.218"
+          },
+          "uptimeSeconds": {
+            "type": "integer",
+            "example": 1082000
+          },
+          "uptimeFormatted": {
+            "type": "string",
+            "example": "12d 12h 33m"
+          },
+          "connectionStatus": {
+            "type": "string",
+            "example": "Connected"
+          },
+          "lastError": {
+            "type": "string",
+            "example": "ERROR_NONE"
+          }
         }
       },
       "PresenceResponse": {
         "type": "object",
         "description": "Live mmWave presence state from the Shelly Presence Gen4 sensor.",
         "properties": {
-          "present": { "type": "boolean", "description": "True when a person/object is detected in the monitored zone.", "example": true },
-          "numObjects": { "type": "integer", "description": "Number of objects detected by the mmWave radar.", "example": 1 },
-          "zoneName": { "type": "string", "example": "Room" },
-          "presentSince": { "type": "string", "format": "date-time", "nullable": true, "description": "When presence last became true; null when nobody is present." },
-          "updatedAt": { "type": "string", "format": "date-time" },
-          "online": { "type": "boolean", "description": "Whether the Shelly device is reachable.", "example": true },
-          "device": { "type": "string", "nullable": true, "example": "S4SN-0U61X" },
-          "ip": { "type": "string", "example": "192.168.1.102" }
+          "present": {
+            "type": "boolean",
+            "description": "True when a person/object is detected in the monitored zone.",
+            "example": true
+          },
+          "numObjects": {
+            "type": "integer",
+            "description": "Number of objects detected by the mmWave radar.",
+            "example": 1
+          },
+          "zoneName": {
+            "type": "string",
+            "example": "Room"
+          },
+          "presentSince": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "When presence last became true; null when nobody is present."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "online": {
+            "type": "boolean",
+            "description": "Whether the Shelly device is reachable.",
+            "example": true
+          },
+          "device": {
+            "type": "string",
+            "nullable": true,
+            "example": "S4SN-0U61X"
+          },
+          "ip": {
+            "type": "string",
+            "example": "192.168.1.102"
+          }
         }
       },
       "GrimaEvent": {
         "type": "object",
         "description": "A single event from the unified Grima event stream (SSE /api/events/stream or REST /api/events).",
         "properties": {
-          "ts": { "type": "string", "format": "date-time" },
+          "ts": {
+            "type": "string",
+            "format": "date-time"
+          },
           "source": {
             "type": "string",
-            "enum": ["shelly", "network", "grima"],
+            "enum": [
+              "shelly",
+              "network",
+              "grima"
+            ],
             "description": "shelly = Shelly Presence sensor events; network = LAN device connect/disconnect transitions; grima = stream lifecycle."
           },
           "type": {
@@ -385,7 +638,12 @@
           "detail": {
             "type": "object",
             "description": "Event-specific payload. Shelly events include zone/numObjects/device; network events include ip, mac, name, vendor, deviceClass, medium.",
-            "example": { "present": true, "numObjects": 1, "zone": "Room", "device": "S4SN-0U61X" }
+            "example": {
+              "present": true,
+              "numObjects": 1,
+              "zone": "Room",
+              "device": "S4SN-0U61X"
+            }
           }
         }
       },
@@ -393,49 +651,150 @@
         "type": "object",
         "description": "Full Shelly Presence bridge state including device identity, sensor data, and event log.",
         "properties": {
-          "source": { "type": "string", "example": "shelly-presence" },
+          "source": {
+            "type": "string",
+            "example": "shelly-presence"
+          },
           "device": {
             "type": "object",
             "properties": {
-              "ip": { "type": "string", "example": "192.168.1.102" },
-              "mac": { "type": "string", "example": "58E6C50D46E0" },
-              "model": { "type": "string", "example": "S4SN-0U61X" },
-              "gen": { "type": "integer", "example": 4 },
-              "firmware": { "type": "string", "example": "1.8.99-presenceg4prod1" },
-              "app": { "type": "string", "example": "PresenceG4" },
-              "matter": { "type": "boolean", "example": true }
+              "ip": {
+                "type": "string",
+                "example": "192.168.1.102"
+              },
+              "mac": {
+                "type": "string",
+                "example": "58E6C50D46E0"
+              },
+              "model": {
+                "type": "string",
+                "example": "S4SN-0U61X"
+              },
+              "gen": {
+                "type": "integer",
+                "example": 4
+              },
+              "firmware": {
+                "type": "string",
+                "example": "1.8.99-presenceg4prod1"
+              },
+              "app": {
+                "type": "string",
+                "example": "PresenceG4"
+              },
+              "matter": {
+                "type": "boolean",
+                "example": true
+              }
             }
           },
-          "online": { "type": "boolean" },
-          "lastSeen": { "type": "string", "format": "date-time", "nullable": true },
-          "realtimeChannel": { "type": "string", "enum": ["websocket", "polling"], "description": "How fresh the data is: websocket when the live event channel is connected, otherwise polling." },
+          "online": {
+            "type": "boolean"
+          },
+          "lastSeen": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "realtimeChannel": {
+            "type": "string",
+            "enum": [
+              "websocket",
+              "polling"
+            ],
+            "description": "How fresh the data is: websocket when the live event channel is connected, otherwise polling."
+          },
           "presence": {
             "type": "object",
             "properties": {
-              "present": { "type": "boolean" },
-              "numObjects": { "type": "integer" },
-              "zoneId": { "type": ["integer", "null"] },
-              "zoneName": { "type": "string" },
-              "presentSince": { "type": "string", "format": "date-time", "nullable": true },
-              "updatedAt": { "type": "string", "format": "date-time", "nullable": true }
+              "present": {
+                "type": "boolean"
+              },
+              "numObjects": {
+                "type": "integer"
+              },
+              "zoneId": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "zoneName": {
+                "type": "string"
+              },
+              "presentSince": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true
+              }
             }
           },
           "illuminance": {
             "type": "object",
             "description": "Ambient light from the sensor's built-in illuminance sensor. Level is pushed in real time by a device webhook (illuminance.measurement / illuminance.change) and cross-checked by polling.",
             "properties": {
-              "level": { "type": ["string", "null"], "enum": ["dark", "twilight", "bright", null], "description": "Classified light level (device thresholds: dark < 10 lux, bright > 50 lux)." },
-              "lux": { "type": ["number", "null"], "nullable": true, "description": "Raw lux value when the device firmware reports it (not exposed by current Presence G4 firmware — always null for now)." },
-              "updatedAt": { "type": "string", "format": "date-time", "nullable": true }
+              "level": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "dark",
+                  "twilight",
+                  "bright",
+                  null
+                ],
+                "description": "Classified light level (device thresholds: dark < 10 lux, bright > 50 lux)."
+              },
+              "lux": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "nullable": true,
+                "description": "Raw lux value when the device firmware reports it (not exposed by current Presence G4 firmware \u2014 always null for now)."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true
+              }
             }
           },
           "zoneConfig": {
             "type": "object",
             "properties": {
-              "zmin": { "type": ["number", "null"], "description": "Minimum monitored distance (m)" },
-              "zmax": { "type": ["number", "null"], "description": "Maximum monitored distance (m)" },
-              "sensitivity": { "type": ["string", "null"] },
-              "mainZone": { "type": ["string", "null"] }
+              "zmin": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Minimum monitored distance (m)"
+              },
+              "zmax": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Maximum monitored distance (m)"
+              },
+              "sensitivity": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "mainZone": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
             }
           },
           "events": {
@@ -444,11 +803,172 @@
             "items": {
               "type": "object",
               "properties": {
-                "ts": { "type": "string", "format": "date-time" },
-                "type": { "type": "string", "example": "presence_detected" },
-                "detail": { "type": "object" }
+                "ts": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "type": {
+                  "type": "string",
+                  "example": "presence_detected"
+                },
+                "detail": {
+                  "type": "object"
+                }
               }
             }
+          }
+        }
+      },
+      "ApartmentsResponse": {
+        "type": "object",
+        "properties": {
+          "units": {
+            "type": "string",
+            "example": "meters"
+          },
+          "count": {
+            "type": "integer",
+            "example": 1
+          },
+          "apartments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApartmentPlan"
+            }
+          }
+        }
+      },
+      "ApartmentPlan": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "sebastiana"
+          },
+          "name": {
+            "type": "string",
+            "example": "Sebastiana"
+          },
+          "description": {
+            "type": "string"
+          },
+          "footprint": {
+            "type": "object",
+            "properties": {
+              "width": {
+                "type": "number"
+              },
+              "depth": {
+                "type": "number"
+              }
+            }
+          },
+          "perimeter": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "description": "Optional closed outer perimeter polygon [x, y] in meters (CCW). When present, the floor follows this exact shape and walls are extruded along each edge \u2014 used for real apartment footprints instead of a bounding box."
+          },
+          "wallHeight": {
+            "type": "number",
+            "example": 1.13
+          },
+          "wallThickness": {
+            "type": "number",
+            "example": 0.2
+          },
+          "horizontalWalls": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "number",
+                  "string"
+                ]
+              },
+              "description": "Horizontal: [x1, x2, y, label?] \u00b7 Vertical: [y1, y2, x, label?] \u2014 coordinates in meters along wall centerlines"
+            },
+            "description": "(x1, x2, y, label?) wall centerline segments"
+          },
+          "verticalWalls": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "number",
+                  "string"
+                ]
+              },
+              "description": "Horizontal: [x1, x2, y, label?] \u00b7 Vertical: [y1, y2, x, label?] \u2014 coordinates in meters along wall centerlines"
+            },
+            "description": "(y1, y2, x, label?) wall centerline segments"
+          },
+          "openings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "window",
+                    "door"
+                  ]
+                },
+                "axis": {
+                  "type": "string",
+                  "enum": [
+                    "h",
+                    "v"
+                  ],
+                  "description": "Wall orientation: h = horizontal wall at y=pos, v = vertical wall at x=pos"
+                },
+                "pos": {
+                  "type": "number"
+                },
+                "from": {
+                  "type": "number"
+                },
+                "to": {
+                  "type": "number"
+                },
+                "label": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "rooms": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "center": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  },
+                  "description": "[x, y] label position in meters"
+                }
+              }
+            }
+          },
+          "wallSegmentCount": {
+            "type": "integer"
+          },
+          "openingCount": {
+            "type": "integer"
           }
         }
       }
