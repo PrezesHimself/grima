@@ -1,9 +1,9 @@
 {
   "shellySensors": [
     {
-      "name": "Living Room",
+      "name": "Corridor (entrance)",
       "ip": "192.168.1.102",
-      "enabled": false
+      "enabled": true
     }
   ]
 }
