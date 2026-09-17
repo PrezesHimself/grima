@@ -791,8 +791,9 @@
 
       // Daylight sources: a point light just inside each window / light-source door
       if (hasPerimeter) {
-        const cxA = pts.reduce((s, p) => s + p[0], 0) / pts.length;
-        const cyA = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+        const per = ap.perimeter; // note: the `pts` const lives in an inner block scope above
+        const cxA = per.reduce((s, p) => s + p[0], 0) / per.length;
+        const cyA = per.reduce((s, p) => s + p[1], 0) / per.length;
         for (const o of (ap.openings || [])) {
           if (o.type !== 'window' && !o.lightSource) continue;
           let lx, ly;
