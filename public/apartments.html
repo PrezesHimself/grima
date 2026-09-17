@@ -181,6 +181,7 @@
           <button class="btn btn-secondary" id="btn-top" onclick="setView('top')">⬇ Top View</button>
           <button class="btn btn-secondary active-view" id="btn-low" onclick="toggleLowWalls()">📏 Full Walls</button>
           <button class="btn btn-secondary active-view" id="btn-furn" onclick="toggleFurniture()">🛏 Furniture</button>
+          <button class="btn btn-secondary active-view" id="btn-labels" onclick="toggleRoomLabels()">🏷 Room Labels</button>
           <button class="btn btn-secondary" onclick="resetCamera()">↺ Reset</button>
           <button class="btn" id="btn-obj" onclick="downloadObj()">⬇ Download .obj</button>
         </div>
@@ -188,7 +189,7 @@
 
       <div id="canvas-wrap">
         <div class="tooltip" id="tooltip"></div>
-        <div class="viewer-hint">Drag to orbit · Scroll to zoom · Right-drag to pan · Hover walls for labels</div>
+        <div class="viewer-hint">Drag to orbit · Scroll to zoom · Click wall → red mark · Click floor → 0.5 m² glow + copy coords</div>
         <div id="empty-msg" style="display:none;">No wall data defined for this apartment yet — add segments to plans.json</div>
       </div>
 
@@ -237,12 +238,18 @@
     let wallScale = 1 / 3;       // start with low walls so the interior is visible (toggle for full)
     let showFurniture = true;    // beds / desks from plans.json
     let furnitureGroup = null;   // THREE.Group of the current plan's furniture
+    let showRoomLabels = true;   // room name sprites + area marks (toggleable)
+    let roomLabelGroup = null;   // THREE.Group of the current plan's room labels
+    const marksGroup = new THREE.Group();  // press marks (red dots, glow square) — scene level,
+                                           // survives low-wall rebuilds, cleared on apartment switch
+    let groundSquare = null;     // { group, fillMat } of the last floor-press glow
 
     // three.js singletons
     const wrap = document.getElementById('canvas-wrap');
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0d1322);
     scene.fog = new THREE.Fog(0x0d1322, 40, 90);
+    scene.add(marksGroup);
 
     const camera = new THREE.PerspectiveCamera(50, wrap.clientWidth / wrap.clientHeight, 0.1, 300);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -488,6 +495,7 @@
           map: makeGridTexture(W, D), roughness: 0.95, side: THREE.DoubleSide
         }));
         floor.receiveShadow = true;
+        floor.userData.kind = 'floor';
         g.add(floor); pickMeshes.push(floor);
 
         // Extruded perimeter walls — one box per edge, split around openings
@@ -607,6 +615,7 @@
         );
         floor.position.set(W / 2, -0.06, D / 2);
         floor.receiveShadow = true;
+        floor.userData.kind = 'floor';
         g.add(floor); pickMeshes.push(floor);
 
         const gridPts = [];
@@ -774,17 +783,21 @@
         }
       }
 
-      // Room labels (floating sprites) + area marks on the floor
+      // Room labels (floating sprites) + area marks on the floor — toggleable group
+      const rl = new THREE.Group();
+      rl.visible = showRoomLabels;
       for (const r of (ap.rooms || [])) {
         const s = makeTextSprite(r.name);
         s.position.set(r.center[0], H + 0.55, r.center[1]);
-        g.add(s);
+        rl.add(s);
         if (r.area != null) {
           const f = makeFloorLabel(r.area.toFixed(1) + ' m²', { color: '#86efac' });
           f.position.set(r.center[0], 0.02, r.center[1]);
-          g.add(f);
+          rl.add(f);
         }
       }
+      g.add(rl);
+      roomLabelGroup = rl;
 
       // Ground marks (street / courtyard / balcony / staircase)
       for (const gl of (ap.groundLabels || [])) {
@@ -934,6 +947,13 @@
       if (furnitureGroup) furnitureGroup.visible = showFurniture;
     }
 
+    function toggleRoomLabels() {
+      showRoomLabels = !showRoomLabels;
+      const btn = document.getElementById('btn-labels');
+      btn.classList.toggle('active-view', showRoomLabels);
+      if (roomLabelGroup) roomLabelGroup.visible = showRoomLabels;
+    }
+
     // ---------------- .obj export ----------------
     function buildObjText(ap) {
       // Perimeter plans: floor/ceiling N-gons + outer wall quads (Y-up, matches the reference sketch)
@@ -1052,27 +1072,67 @@
         pickInput.value = `x ${px.toFixed(2)} · y ${py.toFixed(2)} m`;
         pickCopy.dataset.raw = `${px.toFixed(2)}, ${py.toFixed(2)}`;
         pickCopy.disabled = false;
+        if (hits[0].object.userData.kind === 'floor') pressGround(hits[0].point, px, py);
+        else pressWall(hits[0]);
       }
     });
 
-    pickCopy.addEventListener('click', async () => {
-      if (!pickCopy.dataset.raw) return;
-      try { await navigator.clipboard.writeText(pickCopy.dataset.raw); }
+    // Press on a wall → red dot at the pressed point (offset along the face normal)
+    function pressWall(hit) {
+      const dot = new THREE.Mesh(
+        new THREE.SphereGeometry(0.07, 16, 12),
+        new THREE.MeshBasicMaterial({ color: 0xef4444 })
+      );
+      const n = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+      dot.position.copy(hit.point).addScaledVector(n, 0.035);
+      marksGroup.add(dot);
+    }
+
+    // Press on the floor → glowing 0.5 m² square at the spot + copy its position
+    function pressGround(point, px, py) {
+      if (groundSquare) {
+        marksGroup.remove(groundSquare.group);
+        groundSquare.group.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+        groundSquare = null;
+      }
+      const sq = new THREE.Group();
+      const fillMat = new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide });
+      const fill = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.5), fillMat);
+      fill.rotation.x = -Math.PI / 2;
+      fill.position.y = 0.018;
+      const ring = new THREE.LineLoop(
+        new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(-0.25, 0, -0.25), new THREE.Vector3(0.25, 0, -0.25),
+          new THREE.Vector3(0.25, 0, 0.25), new THREE.Vector3(-0.25, 0, 0.25)
+        ]), new THREE.LineBasicMaterial({ color: 0x6ee7b7 }));
+      ring.position.y = 0.02;
+      sq.add(fill, ring);
+      sq.position.set(point.x, 0, point.z);
+      marksGroup.add(sq);
+      groundSquare = { group: sq, fillMat };
+      copyText(`${px.toFixed(2)}, ${py.toFixed(2)}`); // square center = pressed point
+    }
+
+    async function copyText(text) {
+      try { await navigator.clipboard.writeText(text); }
       catch (err) {
         const t = document.createElement('textarea');
-        t.value = pickCopy.dataset.raw;
+        t.value = text;
         document.body.appendChild(t); t.select();
         document.execCommand('copy'); t.remove();
       }
       pickCopy.textContent = '✓';
       setTimeout(() => { pickCopy.textContent = '📋'; }, 900);
-    });
+    }
+
+    pickCopy.addEventListener('click', () => { if (pickCopy.dataset.raw) copyText(pickCopy.dataset.raw); });
 
     // ---------------- Render loop ----------------
     (function animate() {
       requestAnimationFrame(animate);
       controls.update();
       updateTooltip();
+      if (groundSquare) groundSquare.fillMat.opacity = 0.45 + 0.2 * Math.sin(performance.now() / 300); // glow pulse
       renderer.render(scene, camera);
     })();
 
@@ -1091,6 +1151,12 @@
     function selectApartment(id) {
       current = apartments.find(a => a.id === id) || null;
       document.querySelectorAll('.ap-pill').forEach(p => p.classList.toggle('active', p.dataset.id === id));
+      // press marks belong to the previous plan — clear them on switch
+      while (marksGroup.children.length) {
+        const c = marksGroup.children.pop();
+        c.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+      }
+      groundSquare = null;
       if (current) buildPlan(current);
     }
 
