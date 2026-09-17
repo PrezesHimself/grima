@@ -179,7 +179,7 @@
         <div class="toolbar-btns">
           <button class="btn btn-secondary active-view" id="btn-3d" onclick="setView('3d')">🎥 3D View</button>
           <button class="btn btn-secondary" id="btn-top" onclick="setView('top')">⬇ Top View</button>
-          <button class="btn btn-secondary active-view" id="btn-low" onclick="toggleLowWalls()">📏 Full Walls</button>
+          <button class="btn btn-secondary active-view" id="btn-ghost" onclick="toggleGhostWalls()">📏 Solid Walls</button>
           <button class="btn btn-secondary active-view" id="btn-furn" onclick="toggleFurniture()">🛏 Furniture</button>
           <button class="btn btn-secondary" id="btn-labels" onclick="toggleRoomLabels()">🏷 Room Labels</button>
           <button class="btn btn-secondary" id="btn-light" onclick="toggleLightMode()">🌙 Night</button>
@@ -239,7 +239,8 @@
     let hoverMeshes = [];        // meshes eligible for tooltip raycasting
     let pickMeshes = [];         // meshes eligible for point picking (floor + walls)
     let planBounds = { W: 10, D: 10 };
-    let wallScale = 1 / 3;       // start with low walls so the interior is visible (toggle for full)
+    let ghostWalls = true;      // default view: full-height transparent walls — ceiling stays at the
+                                // real height and walls still block light (shadows), only opacity drops
     let showFurniture = true;    // beds / desks from plans.json
     let furnitureGroup = null;   // THREE.Group of the current plan's furniture
     let showRoomLabels = false;  // room name sprites + area marks — hidden by default
@@ -404,7 +405,7 @@
 
       const g = new THREE.Group();
       planGroup = g;
-      const H = (ap.wallHeight || 1.13) * wallScale;
+      const H = ap.wallHeight || 1.13; // always the real height — ghost mode changes opacity, not geometry
       const T = ap.wallThickness || 0.2;
       const HT = T / 2;
 
@@ -482,10 +483,12 @@
       planBounds = { W, D };
 
       const wallMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.85, metalness: 0.05 });
+      if (ghostWalls) { wallMat.transparent = true; wallMat.opacity = 0.28; wallMat.depthWrite = false; }
       const winMat = new THREE.MeshStandardMaterial({ color: 0x9ec9f5, emissive: 0xbcd9ff, emissiveIntensity: 0.85, transparent: true, opacity: 0.55, roughness: 0.3, metalness: 0.1, depthWrite: false });
       currentWinMat = winMat; // day/night mode adjusts it
       const doorMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.42, roughness: 0.5, depthWrite: false });
       const stoneMat = new THREE.MeshStandardMaterial({ color: 0xd6c7a1, roughness: 0.95, metalness: 0 });
+      if (ghostWalls) { stoneMat.transparent = true; stoneMat.opacity = 0.35; stoneMat.depthWrite = false; }
 
       // Ground plane under the plan — host for street / courtyard / balcony / staircase marks
       const ground = new THREE.Mesh(
@@ -992,7 +995,7 @@
       document.getElementById('plan-meta').innerHTML =
         `<span><strong>${escapeHtml(ap.name)}</strong></span>` +
         `<span>Footprint: <strong>${W} m × ${D} m</strong></span>` + areaSpan +
-        `<span>Wall height: <strong>${wallScale < 1 ? H.toFixed(2) : H} m</strong>${wallScale < 1 ? ' (⅓ view)' : ''}</span>` +
+        `<span>Wall height: <strong>${H} m</strong>${ghostWalls ? ' (ghost walls)' : ''}</span>` +
         `<span>Wall thickness: <strong>${T} m</strong></span>` +
         (hasPerimeter
           ? `<span><strong>${ap.perimeter.length}</strong> perimeter edges · <strong>${(ap.openings || []).length}</strong> openings</span>`
@@ -1080,12 +1083,12 @@
       document.getElementById('btn-top').classList.toggle('active-view', mode === 'top');
     }
 
-    function toggleLowWalls() {
+    function toggleGhostWalls() {
       if (!current) return;
-      wallScale = wallScale === 1 ? 1 / 3 : 1;
-      const btn = document.getElementById('btn-low');
-      btn.classList.toggle('active-view', wallScale < 1);
-      btn.textContent = wallScale < 1 ? '📏 Full Walls' : '📏 ⅓ Walls';
+      ghostWalls = !ghostWalls;
+      const btn = document.getElementById('btn-ghost');
+      btn.classList.toggle('active-view', ghostWalls);
+      btn.textContent = ghostWalls ? '📏 Solid Walls' : '📏 Ghost Walls';
       buildPlan(current, { keepCamera: true });
     }
 
