@@ -243,6 +243,7 @@
     const marksGroup = new THREE.Group();  // press marks (red dots, glow square) — scene level,
                                            // survives low-wall rebuilds, cleared on apartment switch
     let groundSquare = null;     // { group, fillMat } of the last floor-press glow
+    let tvScreens = [];          // [{ mac, mat, online }] — TV screens linked to Grima registry devices
 
     // three.js singletons
     const wrap = document.getElementById('canvas-wrap');
@@ -809,6 +810,7 @@
       // Furniture (beds / desks) — simple boxes from plans.json `furniture`
       const fg = new THREE.Group();
       fg.visible = showFurniture;
+      tvScreens.length = 0;
       const linenMat = new THREE.MeshStandardMaterial({ color: 0xe2d9c8, roughness: 0.9 });
       const pillowMat = new THREE.MeshStandardMaterial({ color: 0xf5f1e8, roughness: 0.95 });
       const woodMat = new THREE.MeshStandardMaterial({ color: 0x8b6f4e, roughness: 0.7 });
@@ -865,6 +867,17 @@
             lift(0.3, 0.04, 0.3, 0, 0.02, 0);
             lift(0.05, h - 0.42, 0.05, 0, 0.04 + (h - 0.42) / 2, 0);
             lift(0.42, 0.38, 0.42, 0, h - 0.19, 0);
+          } else if (f.type === 'tv') {
+            // TV: dark body + screen face on the north side (+z local). With a
+            // deviceMac, the screen lights up while the real device is on the LAN.
+            const h = f.height || 0.6;
+            lift(w, h, d, 0, h / 2, 0);
+            const scrMat = new THREE.MeshBasicMaterial({ color: 0x111827 });
+            const scr = new THREE.Mesh(new THREE.BoxGeometry(w * 0.94, h * 0.78, 0.012), scrMat);
+            scr.position.set(0, h / 2, d / 2 + 0.006);
+            scr.userData.label = label + (f.deviceMac ? `\nLinked device: ${f.deviceMac} (Grima registry)` : '');
+            item.add(scr); hoverMeshes.push(scr);
+            if (f.deviceMac) tvScreens.push({ mac: String(f.deviceMac).toLowerCase(), mat: scrMat, online: false });
           } else {
             // desk / table / chair / cabinet / rug / tv / generic box
             const h = f.height != null ? f.height : (f.type === 'desk' ? 0.75 : 0.9);
@@ -1139,6 +1152,7 @@
       controls.update();
       updateTooltip();
       if (groundSquare) groundSquare.fillMat.opacity = 0.45 + 0.2 * Math.sin(performance.now() / 300); // glow pulse
+      for (const tv of tvScreens) if (tv.online) tv.mat.color.setHSL(0.58, 0.75, 0.55 + 0.1 * Math.sin(performance.now() / 650)); // screen-on shimmer
       renderer.render(scene, camera);
     })();
 
@@ -1159,8 +1173,24 @@
       document.querySelectorAll('.ap-pill').forEach(p => p.classList.toggle('active', p.dataset.id === id));
       // press marks belong to the previous plan — clear them on switch
       clearMarks();
-      if (current) buildPlan(current);
+      if (current) { buildPlan(current); refreshTvStatus(); }
     }
+
+    // TV online status — poll Grima's device registry; the linked screen glows
+    // while the real TV is on the LAN, dark otherwise
+    async function refreshTvStatus() {
+      if (!tvScreens.length) return;
+      try {
+        const res = await fetch('/api/devices');
+        const data = await res.json();
+        const online = new Set((data.devices || []).map(d => String(d.mac).toLowerCase()));
+        for (const tv of tvScreens) {
+          tv.online = online.has(tv.mac);
+          if (!tv.online) tv.mat.color.set(0x111827);
+        }
+      } catch (e) { /* keep dark */ }
+    }
+    setInterval(refreshTvStatus, 10000);
 
     async function loadPlans() {
       try {
