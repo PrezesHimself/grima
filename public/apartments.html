@@ -183,6 +183,7 @@
           <button class="btn btn-secondary active-view" id="btn-furn" onclick="toggleFurniture()">🛏 Furniture</button>
           <button class="btn btn-secondary" id="btn-labels" onclick="toggleRoomLabels()">🏷 Room Labels</button>
           <button class="btn btn-secondary" id="btn-light" onclick="toggleLightMode()">🌙 Night</button>
+          <button class="btn btn-secondary" id="btn-sim" onclick="toggleSimLights()">🧪 Sim lights</button>
           <button class="btn btn-secondary" onclick="resetCamera()">↺ Reset</button>
           <button class="btn" id="btn-obj" onclick="downloadObj()">⬇ Download .obj</button>
         </div>
@@ -249,6 +250,7 @@
     let tvScreens = [];          // [{ mac, mat, online }] — TV screens linked to Grima registry devices
     let shellyRefs = [];         // [{ lensMat, light, baseIntensity, labelBase, meshes }] — Shelly corridor eye
     let nightMode = false;       // day/night lighting switch
+    let simMode = false;         // test mode: force device lights on (Shelly ball + white TV)
     let currentWinMat = null;    // window glass material of the current plan (day/night adjusts it)
     const dayLights = [];        // daylight point lights of the current plan (off at night)
 
@@ -909,8 +911,12 @@
             const scr = new THREE.Mesh(new THREE.BoxGeometry(w * 0.94, h * 0.78, 0.012), scrMat);
             scr.position.set(0, h / 2, d / 2 + 0.006);
             scr.userData.label = label + (f.deviceMac ? `\nLinked device: ${f.deviceMac} (Grima registry)` : '');
-            item.add(scr); hoverMeshes.push(scr);
-            if (f.deviceMac) tvScreens.push({ mac: String(f.deviceMac).toLowerCase(), mat: scrMat, online: false });
+            // white light spill in front of the screen — used by sim mode
+            const tvLight = new THREE.PointLight(0xffffff, 0, 6, 2);
+            tvLight.position.set(0, h / 2, d / 2 + 0.35);
+            tvLight.visible = false;
+            item.add(scr, tvLight); hoverMeshes.push(scr);
+            tvScreens.push({ mac: f.deviceMac ? String(f.deviceMac).toLowerCase() : null, mat: scrMat, light: tvLight, online: false });
           } else {
             // desk / table / chair / cabinet / rug / tv / generic box
             const h = f.height != null ? f.height : (f.type === 'desk' ? 0.75 : 0.9);
@@ -938,6 +944,11 @@
         const pl = new THREE.PointLight(0xffd27d, 0, 5, 2); // off until light is detected
         pl.position.set(cx, 0.4, cz);
         pl.visible = false;
+        // visible ball of light — shown while the corridor reports light (or in sim mode)
+        const ballMat = new THREE.MeshBasicMaterial({ color: 0xffe9b3 });
+        const ball = new THREE.Mesh(new THREE.SphereGeometry(0.15, 20, 14), ballMat);
+        ball.position.set(cx, 0.45, cz);
+        ball.visible = false;
         // Presence marker: pulsing ring + person figure at the sensor spot,
         // shown on the layout while the zone reports movement
         const pg = new THREE.Group();
@@ -950,12 +961,12 @@
         person.position.y = 0.3;
         pg.add(ring, person);
         pg.visible = false;
-        g.add(body, lens, pl, pg);
+        g.add(body, lens, pl, ball, pg);
         hoverMeshes.push(body, lens);
         const fl = makeFloorLabel('SHELLY', { color: '#fbbf24', scale: 0.007 });
         fl.position.set(cx, 0.02, cz + 0.36);
         g.add(fl);
-        shellyRefs.push({ lensMat, light: pl, ringMat, presenceGroup: pg, baseIntensity: 0, labelBase: s.label || 'Shelly sensor', meshes: [body, lens] });
+        shellyRefs.push({ lensMat, light: pl, ball, ringMat, presenceGroup: pg, baseIntensity: 0, labelBase: s.label || 'Shelly sensor', meshes: [body, lens] });
       }
 
       // Center the plan at the origin
@@ -1010,6 +1021,26 @@
       btn.classList.toggle('active-view', nightMode);
       btn.textContent = nightMode ? '☀️ Day' : '🌙 Night';
       applyLightingMode();
+    }
+
+    // Test button: force device lights on — Shelly emits a ball of light, TV white
+    function toggleSimLights() {
+      simMode = !simMode;
+      const btn = document.getElementById('btn-sim');
+      btn.classList.toggle('active-view', simMode);
+      if (simMode) { // apply immediately, no waiting for the next poll
+        for (const ref of shellyRefs) {
+          ref.lensMat.color.set(0xfbbf24); ref.lensMat.emissive.set(0xf59e0b); ref.lensMat.emissiveIntensity = 1.2;
+          ref.baseIntensity = 2.0; ref.light.intensity = 2.0; ref.light.visible = true;
+          ref.ball.visible = true;
+        }
+        for (const tv of tvScreens) {
+          tv.mat.color.set(0xffffff);
+          tv.light.visible = true; tv.light.intensity = 2.5;
+        }
+      } else {
+        refreshLiveStatus(); // back to real device states
+      }
     }
 
     // ---------------- Camera views ----------------
@@ -1249,9 +1280,10 @@
       controls.update();
       updateTooltip();
       if (groundSquare) groundSquare.fillMat.opacity = 0.45 + 0.2 * Math.sin(performance.now() / 300); // glow pulse
-      for (const tv of tvScreens) if (tv.online) tv.mat.color.setHSL(0.58, 0.75, 0.55 + 0.1 * Math.sin(performance.now() / 650)); // screen-on shimmer
+      for (const tv of tvScreens) if (tv.online && !simMode) tv.mat.color.setHSL(0.58, 0.75, 0.55 + 0.1 * Math.sin(performance.now() / 650)); // screen-on shimmer
       for (const ref of shellyRefs) {
         if (ref.light.visible) ref.light.intensity = ref.baseIntensity * (0.85 + 0.15 * Math.sin(performance.now() / 90)); // flashlight flicker
+        if (ref.ball.visible) { const k = 1 + 0.15 * Math.sin(performance.now() / 220); ref.ball.scale.set(k, k, k); } // ball of light pulse
         if (ref.presenceGroup.visible) { // presence pulse on the layout
           const k = 1 + 0.25 * Math.sin(performance.now() / 260);
           ref.presenceGroup.scale.set(k, 1, k);
@@ -1289,8 +1321,15 @@
         const devs = await devRes.json();
         const onlineMacs = new Set((devs.devices || []).map(d => String(d.mac).toLowerCase()));
         for (const tv of tvScreens) {
-          tv.online = onlineMacs.has(tv.mac);
-          if (!tv.online) tv.mat.color.set(0x111827);
+          tv.online = tv.mac ? onlineMacs.has(tv.mac) : false;
+          if (simMode) { // test: TV emits white light
+            tv.mat.color.set(0xffffff);
+            tv.light.visible = true;
+            tv.light.intensity = 2.5;
+          } else {
+            if (!tv.online) tv.mat.color.set(0x111827);
+            tv.light.visible = false; // real online: blue shimmer only (see animate)
+          }
         }
         const shArr = await shRes.json();
         const sh = shArr.find(x => x && x.enabled !== false) || shArr[0] || null;
@@ -1298,18 +1337,19 @@
           const online = !!(sh && sh.online);
           const lvl = sh?.illuminance?.level; // 'dark' | 'twilight' | 'bright'
           const present = !!(sh?.presence?.present);
-          if (!online) {
-            ref.lensMat.color.set(0x475569); ref.lensMat.emissive.set(0x000000);
+          const lit = simMode || (online && lvl !== 'dark'); // sim forces the light ball on
+          if (!lit) {
+            ref.lensMat.color.set(online ? 0x64748b : 0x475569);
+            ref.lensMat.emissive.set(online ? 0x1e293b : 0x000000);
             ref.light.visible = false;
-          } else if (lvl === 'dark') {
-            ref.lensMat.color.set(0x64748b); ref.lensMat.emissive.set(0x1e293b);
-            ref.light.visible = false;
+            ref.ball.visible = false;
           } else {
-            // light in a windowless corridor = carried light source
+            // light in a windowless corridor = carried light source (or simulation)
             ref.lensMat.color.set(0xfbbf24); ref.lensMat.emissive.set(0xf59e0b); ref.lensMat.emissiveIntensity = 1.2;
-            ref.baseIntensity = lvl === 'bright' ? 2.2 : 1.2;
+            ref.baseIntensity = simMode ? 2.0 : (lvl === 'bright' ? 2.2 : 1.2);
             ref.light.intensity = ref.baseIntensity;
             ref.light.visible = true;
+            ref.ball.visible = true;
           }
           // map the detection onto the layout: person marker at the sensor spot
           ref.presenceGroup.visible = online && present;
