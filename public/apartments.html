@@ -498,7 +498,11 @@
           }
         }
 
-        // Subtle segment-length marks on the ground, just outside each perimeter edge
+        // Subtle segment-length marks on the ground, just outside each perimeter
+        // edge. Edges can be split into separate measurements via ap.exteriorLabels:
+        // [{ edge: <1-based index>, cuts: [distances from edge start], labels: [...] }]
+        const extLabels = {};
+        for (const el of (ap.exteriorLabels || [])) extLabels[el.edge] = el;
         const cxAvg = pts.reduce((s, p) => s + p[0], 0) / pts.length;
         const cyAvg = pts.reduce((s, p) => s + p[1], 0) / pts.length;
         for (let i = 0; i < pts.length; i++) {
@@ -511,9 +515,17 @@
           let nx = -dy / len, ny = dx / len;
           const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
           if (nx * (mx - cxAvg) + ny * (my - cyAvg) < 0) { nx = -nx; ny = -ny; }
-          const f = makeFloorLabel(len.toFixed(2) + ' m', { color: '#64748b', scale: 0.008 });
-          f.position.set(mx + nx * 0.55, 0.02, my + ny * 0.55);
-          g.add(f);
+          const ux = dx / len, uy = dy / len; // unit direction along the edge
+          const el = extLabels[i + 1];
+          const bounds = el ? [0, ...(el.cuts || []), len] : [0, len];
+          for (let s = 0; s < bounds.length - 1; s++) {
+            const a = bounds[s], b = bounds[s + 1];
+            if (b - a < 0.3) continue; // skip slivers
+            const mid = (a + b) / 2;
+            const f = makeFloorLabel((b - a).toFixed(2) + ' m', { color: '#64748b', scale: 0.008 });
+            f.position.set(x1 + ux * mid + nx * 0.55, 0.02, y1 + uy * mid + ny * 0.55);
+            g.add(f);
+          }
         }
 
         // Top edge outline — shows the extrusion height without blocking the top view
