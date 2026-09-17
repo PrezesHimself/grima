@@ -756,17 +756,16 @@
           if (o.axis === 'h') addOpen(new THREE.BoxGeometry(inner, hgt, T * 0.55), doorMat, mid, cy, o.pos);
           else addOpen(new THREE.BoxGeometry(T * 0.55, hgt, inner), doorMat, o.pos, cy, mid);
         } else if (kind === 'dbl') {
-          // double doors — both wings held open at 90°, one per side
+          // double doors — closed, both wings meeting in the middle of the frame
           addFrame(o.axis === 'h');
           const hgt = Hbase - lh - 0.03;
-          const leafT = 0.05;
           const half = len / 2;
           if (o.axis === 'h') {
-            addOpen(new THREE.BoxGeometry(leafT, hgt, half), doorMat, o.from + leafT / 2, hgt / 2, o.pos + half / 2);
-            addOpen(new THREE.BoxGeometry(leafT, hgt, half), doorMat, o.to - leafT / 2, hgt / 2, o.pos - half / 2);
+            addOpen(new THREE.BoxGeometry(half, hgt, T * 0.55), doorMat, o.from + half / 2, hgt / 2, o.pos);
+            addOpen(new THREE.BoxGeometry(half, hgt, T * 0.55), doorMat, o.to - half / 2, hgt / 2, o.pos);
           } else {
-            addOpen(new THREE.BoxGeometry(half, hgt, leafT), doorMat, o.pos + half / 2, hgt / 2, o.from + leafT / 2);
-            addOpen(new THREE.BoxGeometry(half, hgt, leafT), doorMat, o.pos - half / 2, hgt / 2, o.to - leafT / 2);
+            addOpen(new THREE.BoxGeometry(T * 0.55, hgt, half), doorMat, o.pos, hgt / 2, o.from + half / 2);
+            addOpen(new THREE.BoxGeometry(T * 0.55, hgt, half), doorMat, o.pos, hgt / 2, o.to - half / 2);
           }
         } else {
           // window: solid wall below the sill and above the frame; stone frame
@@ -945,17 +944,18 @@
         // sensor itself — the ball of light appears at the fixture when lit.
         const lx = s.lightPos ? s.lightPos[0] : cx;
         const ly = s.lightPos ? s.lightPos[1] : cz;
-        const pl = new THREE.PointLight(0xffd27d, 0, 5, 2); // off until light is detected
-        pl.position.set(lx, 0.4, ly);
+        // Ceiling light: hangs from the ceiling (3.2 m in full-wall view), steady — no flicker
+        const pl = new THREE.PointLight(0xffd27d, 0, 6, 2); // off until light is detected
+        pl.position.set(lx, H - 0.2, ly);
         pl.visible = false;
-        // small fixture marker so the light position is visible even when off
+        // small fixture marker on the ceiling so the light position is visible even when off
         const fixture = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.05, 20),
           new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.6 }));
-        fixture.position.set(lx, 0.025, ly);
+        fixture.position.set(lx, H - 0.03, ly);
         // visible ball of light — shown while the corridor reports light (or in sim mode)
         const ballMat = new THREE.MeshBasicMaterial({ color: 0xffe9b3 });
         const ball = new THREE.Mesh(new THREE.SphereGeometry(0.15, 20, 14), ballMat);
-        ball.position.set(lx, 0.45, ly);
+        ball.position.set(lx, H - 0.18, ly);
         ball.visible = false;
         // Presence marker: pulsing ring + person figure at the sensor spot,
         // shown on the layout while the zone reports movement
@@ -1290,8 +1290,6 @@
       if (groundSquare) groundSquare.fillMat.opacity = 0.45 + 0.2 * Math.sin(performance.now() / 300); // glow pulse
       for (const tv of tvScreens) if (tv.online && !simMode) tv.mat.color.setHSL(0.58, 0.75, 0.55 + 0.1 * Math.sin(performance.now() / 650)); // screen-on shimmer
       for (const ref of shellyRefs) {
-        if (ref.light.visible) ref.light.intensity = ref.baseIntensity * (0.85 + 0.15 * Math.sin(performance.now() / 90)); // flashlight flicker
-        if (ref.ball.visible) { const k = 1 + 0.15 * Math.sin(performance.now() / 220); ref.ball.scale.set(k, k, k); } // ball of light pulse
         if (ref.presenceGroup.visible) { // presence pulse on the layout
           const k = 1 + 0.25 * Math.sin(performance.now() / 260);
           ref.presenceGroup.scale.set(k, 1, k);
