@@ -296,7 +296,7 @@
     }
 
     // Flat label lying on the ground/floor plane (area marks, street & site marks)
-    function makeFloorLabel(text, { color = '#7dd3fc', scale = 0.011 } = {}) {
+    function makeFloorLabel(text, { color = '#7dd3fc', scale = 0.011, yaw = 0 } = {}) {
       const pad = 14, fontPx = 40;
       const canvas = document.createElement('canvas');
       let ctx = canvas.getContext('2d');
@@ -319,6 +319,7 @@
         new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false })
       );
       m.rotation.x = -Math.PI / 2; // lie flat on the ground
+      if (yaw) m.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), yaw); // align with wall orientation
       return m;
     }
 
@@ -498,13 +499,66 @@
           }
         }
 
-        // Subtle segment-length marks on the ground, just outside each perimeter
-        // edge. Edges can be split into separate measurements via ap.exteriorLabels:
+        // Architectural dimension marks outside each perimeter edge:
+        //   row 1 (close to the wall): per-section measurements for split edges
+        //   row 2 (outer): total length of the whole edge
+        // Splits come from ap.exteriorLabels:
         // [{ edge: <1-based index>, cuts: [distances from edge start], labels: [...] }]
         const extLabels = {};
         for (const el of (ap.exteriorLabels || [])) extLabels[el.edge] = el;
         const cxAvg = pts.reduce((s, p) => s + p[0], 0) / pts.length;
         const cyAvg = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+
+        const ROW_SEG = 0.42, ROW_TOT = 1.15; // dimension-line offsets from the wall line
+        const dimMat = new THREE.MeshBasicMaterial({ color: 0x64748b, transparent: true, opacity: 0.9, depthWrite: false });
+        const totMat = new THREE.MeshBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: 0.95, depthWrite: false });
+        const extLineMat = new THREE.MeshBasicMaterial({ color: 0x64748b, transparent: true, opacity: 0.45, depthWrite: false });
+
+        // Text yaw so a label reads along the wall without ending up upside down
+        const labelYaw = (vx, vy) => {
+          let x = vx, y = vy;
+          if (x < -1e-6 || (Math.abs(x) <= 1e-6 && y < 0)) { x = -x; y = -y; }
+          return Math.atan2(-y, x);
+        };
+
+        const putFlat = (geo, m, px, py, yaw, yH) => {
+          const b = new THREE.Mesh(geo, m);
+          b.position.set(px, yH, py);
+          if (yaw != null) b.rotation.y = yaw;
+          g.add(b);
+        };
+
+        // One dimension: line + arrowheads + witness ticks + rotated label
+        function addDimension(x1, y1, x2, y2, nx, ny, off, text, mat, color, scale) {
+          const dx = x2 - x1, dy = y2 - y1;
+          const L = Math.hypot(dx, dy);
+          if (L < 0.05 || !text) return;
+          const ux = dx / L, uy = dy / L;
+          // dimension line
+          putFlat(new THREE.BoxGeometry(L, 0.01, 0.028), mat,
+            (x1 + x2) / 2 + nx * off, (y1 + y2) / 2 + ny * off, -Math.atan2(dy, dx), 0.025);
+          // arrowheads: flat triangles, tips touching the end ticks, bodies pointing inward
+          const ah = 0.24, ar = 0.075;
+          const tri = new THREE.Shape();
+          tri.moveTo(0, ah); tri.lineTo(ar, 0); tri.lineTo(-ar, 0); tri.closePath();
+          const triGeo = new THREE.ShapeGeometry(tri);
+          for (const [ex, ey, sx, sy] of [[x1, y1, -ux, -uy], [x2, y2, ux, uy]]) {
+            const b = new THREE.Mesh(triGeo, mat);
+            b.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(sx, 0, sy));
+            b.position.set(ex + nx * off - sx * ah, 0.028, ey + ny * off - sy * ah);
+            g.add(b);
+          }
+          // witness ticks: short lines crossing the dimension line at both ends
+          for (const [ex, ey] of [[x1, y1], [x2, y2]]) {
+            putFlat(new THREE.BoxGeometry(0.028, 0.01, 0.2), mat,
+              ex + nx * off, ey + ny * off, -Math.atan2(ny, nx), 0.03);
+          }
+          // label rotated along the wall, just outside the line
+          const f = makeFloorLabel(text, { color, scale: scale || 0.008, yaw: labelYaw(ux, uy) });
+          f.position.set((x1 + x2) / 2 + nx * (off + 0.3), 0.035, (y1 + y2) / 2 + ny * (off + 0.3));
+          g.add(f);
+        }
+
         for (let i = 0; i < pts.length; i++) {
           const [x1, y1] = pts[i];
           const [x2, y2] = pts[(i + 1) % pts.length];
@@ -518,14 +572,25 @@
           const ux = dx / len, uy = dy / len; // unit direction along the edge
           const el = extLabels[i + 1];
           const bounds = el ? [0, ...(el.cuts || []), len] : [0, len];
-          for (let s = 0; s < bounds.length - 1; s++) {
-            const a = bounds[s], b = bounds[s + 1];
-            if (b - a < 0.3) continue; // skip slivers
-            const mid = (a + b) / 2;
-            const f = makeFloorLabel((b - a).toFixed(2) + ' m', { color: '#64748b', scale: 0.008 });
-            f.position.set(x1 + ux * mid + nx * 0.55, 0.02, y1 + uy * mid + ny * 0.55);
-            g.add(f);
+          const split = bounds.length > 2;
+          if (split) {
+            // extension lines from the wall out past row 2 at every boundary point
+            for (const t of bounds) {
+              const px = x1 + ux * t, py = y1 + uy * t;
+              const l0 = 0.06, l1 = ROW_TOT + 0.18;
+              putFlat(new THREE.BoxGeometry(0.02, 0.008, l1 - l0), extLineMat,
+                px + nx * (l0 + l1) / 2, py + ny * (l0 + l1) / 2, -Math.atan2(ny, nx), 0.02);
+            }
+            // row 1: per-section measurements, close to the wall
+            for (let s = 0; s < bounds.length - 1; s++) {
+              const a = bounds[s], b = bounds[s + 1];
+              if (b - a < 0.3) continue; // skip slivers
+              addDimension(x1 + ux * a, y1 + uy * a, x1 + ux * b, y1 + uy * b,
+                nx, ny, ROW_SEG, (b - a).toFixed(2) + ' m', dimMat, '#64748b');
+            }
           }
+          // row 2: total length of the whole edge (only row for unsplit edges)
+          addDimension(x1, y1, x2, y2, nx, ny, ROW_TOT, len.toFixed(2) + ' m', totMat, '#94a3b8', 0.009);
         }
 
         // Top edge outline — shows the extrusion height without blocking the top view
