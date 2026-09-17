@@ -179,8 +179,8 @@
         <div class="toolbar-btns">
           <button class="btn btn-secondary active-view" id="btn-3d" onclick="setView('3d')">🎥 3D View</button>
           <button class="btn btn-secondary" id="btn-top" onclick="setView('top')">⬇ Top View</button>
-          <button class="btn btn-secondary active-view" id="btn-ghost" onclick="toggleGhostWalls()">👻 Ghost Walls</button>
-          <button class="btn btn-secondary" id="btn-third" onclick="toggleThirdWalls()">📏 ⅓ Walls</button>
+          <button class="btn btn-secondary" id="btn-ghost" onclick="toggleGhostWalls()">👻 Ghost Walls</button>
+          <button class="btn btn-secondary active-view" id="btn-third" onclick="toggleThirdWalls()">📏 ⅓ Walls</button>
           <button class="btn btn-secondary active-view" id="btn-furn" onclick="toggleFurniture()">🛏 Furniture</button>
           <button class="btn btn-secondary" id="btn-labels" onclick="toggleRoomLabels()">🏷 Room Labels</button>
           <button class="btn btn-secondary" id="btn-light" onclick="toggleLightMode()">🌙 Night</button>
@@ -240,9 +240,9 @@
     let hoverMeshes = [];        // meshes eligible for tooltip raycasting
     let pickMeshes = [];         // meshes eligible for point picking (floor + walls)
     let planBounds = { W: 10, D: 10 };
-    let ghostWalls = true;      // wall opacity mode: full-height transparent walls (default)
-    let thirdWalls = false;     // wall height mode: slabs drawn at 1/3 height — the apartment stays
-                                // 3.2 m (ceiling lamp, labels, light-blocking proxies at true height)
+    let ghostWalls = false;     // wall opacity mode: full-height transparent walls
+    let thirdWalls = true;      // wall height mode (default): slabs drawn at 1/3 height — the apartment
+                                // stays 3.2 m (ceiling lamp, labels, light-blocking proxies at true height)
     let showFurniture = true;    // beds / desks from plans.json
     let furnitureGroup = null;   // THREE.Group of the current plan's furniture
     let showRoomLabels = false;  // room name sprites + area marks — hidden by default
@@ -252,7 +252,9 @@
     let groundSquare = null;     // { group, fillMat } of the last floor-press glow
     let tvScreens = [];          // [{ mac, mat, online }] — TV screens linked to Grima registry devices
     let shellyRefs = [];         // [{ lensMat, light, baseIntensity, labelBase, meshes }] — Shelly corridor eye
-    let nightMode = false;       // day/night lighting switch
+    let nightMode = !krakowIsDay(); // day/night follows Krakow's real sun (hour + month);
+                                    // a manual click overrides until the next sunrise/sunset
+    let lastSolarIsDay = krakowIsDay();
     let simMode = false;         // test mode: force device lights on (Shelly ball + white TV)
     let currentWinMat = null;    // window glass material of the current plan (day/night adjusts it)
     const dayLights = [];        // daylight point lights of the current plan (off at night)
@@ -1021,6 +1023,7 @@
         `<span><strong>${escapeHtml(ap.name)}</strong></span>` +
         `<span>Footprint: <strong>${W} m × ${D} m</strong></span>` + areaSpan +
         `<span>Wall height: <strong>${Htrue} m</strong>${modeTags ? ` (${modeTags})` : ''}</span>` +
+        `<span id="sun-meta"></span>` +
         `<span>Wall thickness: <strong>${T} m</strong></span>` +
         (hasPerimeter
           ? `<span><strong>${ap.perimeter.length}</strong> perimeter edges · <strong>${(ap.openings || []).length}</strong> openings</span>`
@@ -1030,6 +1033,7 @@
       document.getElementById('plan-desc').textContent = ap.description || '';
 
       applyLightingMode(); // re-apply day/night to the freshly built materials/lights
+      updateSunMeta();     // show Krakow sunrise/sunset in the meta strip
       if (!opts.keepCamera) resetCamera();
     }
 
@@ -1049,13 +1053,57 @@
         else { currentWinMat.color.set(0x9ec9f5); currentWinMat.emissive.set(0xbcd9ff); currentWinMat.emissiveIntensity = 0.85; }
       }
       for (const L of dayLights) L.visible = !n;
+      syncLightButton(); // keep the toolbar button in sync (initial load, solar flips)
     }
 
-    function toggleLightMode() {
-      nightMode = !nightMode;
+    // ── Krakow sun: day/night follows the real sunrise/sunset (hour + month) ──────────
+    function krakowSunAltitude(date) { // sun altitude in degrees over Kraków (50.06N, 19.94E)
+      const R = Math.PI / 180;
+      const jd = date.getTime() / 86400000 + 2440587.5;
+      const d = jd - 2451545.0;
+      const M = (357.5291 + 0.98560028 * d) * R;
+      const L = (280.4592 + 0.98564736 * d) * R;
+      const lambda = L + 1.9148 * R * Math.sin(M) + 0.02 * R * Math.sin(2 * M); // amplitudes in degrees
+      const eps = 23.4397 * R;
+      const dec = Math.asin(Math.sin(lambda) * Math.sin(eps));
+      const ra = Math.atan2(Math.cos(eps) * Math.sin(lambda), Math.cos(lambda));
+      const lst = (((280.46061837 + 360.98564736629 * d) % 360) + 19.94) * R;
+      const H = lst - ra;
+      const phi = 50.06 * R;
+      return Math.asin(Math.sin(phi) * Math.sin(dec) + Math.cos(phi) * Math.cos(dec) * Math.cos(H)) / R;
+    }
+    function krakowIsDay() { return krakowSunAltitude(new Date()) > -0.833; } // sun up (refraction included)
+    function krakowSunTimes(date) { // today's sunrise/sunset as Dates (15-min scan resolution)
+      const start = new Date(date); start.setUTCHours(4, 0, 0, 0);
+      let sunrise = null, sunset = null, prev = krakowSunAltitude(start) + 0.833;
+      for (let i = 1; i <= 96; i++) {
+        const t = new Date(start.getTime() + i * 900000);
+        const cur = krakowSunAltitude(t) + 0.833;
+        if (prev < 0 && cur >= 0 && !sunrise) sunrise = t;
+        if (prev > 0 && cur <= 0 && !sunset) sunset = t;
+        prev = cur;
+      }
+      return { sunrise, sunset };
+    }
+    function updateSunMeta() {
+      const el = document.getElementById('sun-meta');
+      if (!el) return;
+      const t = krakowSunTimes(new Date());
+      const fmt = new Intl.DateTimeFormat('pl-PL', { timeZone: 'Europe/Warsaw', hour: '2-digit', minute: '2-digit' });
+      const tz = (new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Warsaw', timeZoneName: 'short' })
+        .formatToParts(new Date()).find(p => p.type === 'timeZoneName') || {}).value || '';
+      el.textContent = nightMode
+        ? `🌙 Night · sunrise ${t.sunrise ? fmt.format(t.sunrise) : '—'} ${tz}`
+        : `☀️ Day · sunset ${t.sunset ? fmt.format(t.sunset) : '—'} ${tz}`;
+    }
+    function syncLightButton() {
       const btn = document.getElementById('btn-light');
       btn.classList.toggle('active-view', nightMode);
       btn.textContent = nightMode ? '☀️ Day' : '🌙 Night';
+    }
+    function toggleLightMode() {
+      nightMode = !nightMode;
+      syncLightButton();
       applyLightingMode();
     }
 
@@ -1354,6 +1402,14 @@
 
     // Live device status: TV screen (registry) + Shelly corridor eye (illuminance)
     async function refreshLiveStatus() {
+      // Follow Krakow's sun: flip day/night when the computed phase changes
+      const isDay = krakowIsDay();
+      if (isDay !== lastSolarIsDay) {
+        lastSolarIsDay = isDay;
+        nightMode = !isDay;
+        applyLightingMode();
+        updateSunMeta();
+      }
       if (!tvScreens.length && !shellyRefs.length) return;
       try {
         const [devRes, shRes] = await Promise.all([fetch('/api/devices'), fetch('/api/shelly')]);
