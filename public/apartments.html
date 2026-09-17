@@ -1077,8 +1077,18 @@
       }
     });
 
+    // Single selection: any new press cancels the previous mark(s)
+    function clearMarks() {
+      while (marksGroup.children.length) {
+        const c = marksGroup.children.pop();
+        c.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+      }
+      groundSquare = null;
+    }
+
     // Press on a wall → red dot at the pressed point (offset along the face normal)
     function pressWall(hit) {
+      clearMarks();
       const dot = new THREE.Mesh(
         new THREE.SphereGeometry(0.07, 16, 12),
         new THREE.MeshBasicMaterial({ color: 0xef4444 })
@@ -1090,11 +1100,7 @@
 
     // Press on the floor → glowing 0.5 m² square at the spot + copy its position
     function pressGround(point, px, py) {
-      if (groundSquare) {
-        marksGroup.remove(groundSquare.group);
-        groundSquare.group.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
-        groundSquare = null;
-      }
+      clearMarks();
       const sq = new THREE.Group();
       const fillMat = new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide });
       const fill = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.5), fillMat);
@@ -1152,11 +1158,7 @@
       current = apartments.find(a => a.id === id) || null;
       document.querySelectorAll('.ap-pill').forEach(p => p.classList.toggle('active', p.dataset.id === id));
       // press marks belong to the previous plan — clear them on switch
-      while (marksGroup.children.length) {
-        const c = marksGroup.children.pop();
-        c.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
-      }
-      groundSquare = null;
+      clearMarks();
       if (current) buildPlan(current);
     }
 

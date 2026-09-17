@@ -136,7 +136,7 @@
         { "type": "cabinet", "label": "Display cabinet (glass door) · photo-verified", "center": [6.9, 8.3], "size": [0.45, 1.6], "height": 2.0, "note": "Tall glass-front cabinet along the east wall (photos 1/6)." },
         { "type": "dresser", "label": "Chest of drawers + TV · photo-verified", "center": [3.38, 12.15], "size": [0.45, 1.6], "height": 0.9, "note": "TV atop a wooden chest along the west wall (photo 1)." },
         { "type": "tv", "label": "TV on the chest", "center": [3.4, 12.15], "size": [0.07, 1.05], "height": 0.6, "elev": 0.9, "color": "#1e293b" },
-        { "type": "wardrobe", "label": "Tall narrow wardrobe · photo-verified", "center": [5.435, 12.6], "size": [0.5, 0.62], "height": 2.0, "note": "In the gap between the two south windows (photo 1)." }
+        { "type": "wardrobe", "label": "Tall narrow wardrobe · photo-verified", "center": [6.9, 12.69], "size": [0.5, 0.62], "height": 2.0, "note": "Corner east of the second south window, flush with the east wall (user-placed at ~6.73, 12.39)." }
       ]
     }
   ]
