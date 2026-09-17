@@ -258,6 +258,9 @@
     let simMode = false;         // test mode: force device lights on (Shelly ball + white TV)
     let currentWinMat = null;    // window glass material of the current plan (day/night adjusts it)
     const dayLights = [];        // daylight point lights of the current plan (off at night)
+    const streetLights = [];     // street lamps along Sebastiana St — dim warm light, night only
+    let eventSource = null;      // SSE connection to /api/events/stream
+    let sseUp = false;           // stream healthy? (polling falls back when it drops)
 
     // three.js singletons
     const wrap = document.getElementById('canvas-wrap');
@@ -406,6 +409,7 @@
       hoverMeshes = [];
       pickMeshes = [];
       dayLights.length = 0;
+      streetLights.length = 0;
 
       const g = new THREE.Group();
       planGroup = g;
@@ -874,6 +878,27 @@
         g.add(f);
       }
 
+      // Street lamps — poles along the street; at night they emit a dim warm light
+      const poleMat = new THREE.MeshStandardMaterial({ color: 0x39414f, roughness: 0.6, metalness: 0.4 });
+      for (const sl of (ap.streetLights || [])) {
+        const [sx, sz] = sl.pos;
+        const poleH = 3.4;
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, poleH, 10), poleMat);
+        pole.position.set(sx, poleH / 2, sz);
+        pole.castShadow = true;
+        pole.userData.label = sl.label || 'street lamp';
+        const headMat = new THREE.MeshStandardMaterial({ color: 0x8a8f98, emissive: 0xffd9a0, emissiveIntensity: 0, roughness: 0.5 });
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 16, 12), headMat);
+        head.position.set(sx, poleH + 0.05, sz);
+        head.userData.label = pole.userData.label;
+        const light = new THREE.PointLight(0xffd9a0, 0.8, 7, 2); // dim pool of street light
+        light.position.set(sx, poleH - 0.1, sz);
+        light.visible = nightMode; // applyLightingMode() keeps this in sync after the build
+        g.add(pole, head, light);
+        hoverMeshes.push(pole, head);
+        streetLights.push({ light, headMat });
+      }
+
       // Furniture (beds / desks) — simple boxes from plans.json `furniture`
       const fg = new THREE.Group();
       fg.visible = showFurniture;
@@ -1028,6 +1053,7 @@
         `<span>Footprint: <strong>${W} m × ${D} m</strong></span>` + areaSpan +
         `<span>Wall height: <strong>${Htrue} m</strong>${modeTags ? ` (${modeTags})` : ''}</span>` +
         `<span id="sun-meta"></span>` +
+        `<span id="sse-dot" style="color:#64748b">○ live</span>` +
         `<span>Wall thickness: <strong>${T} m</strong></span>` +
         (hasPerimeter
           ? `<span><strong>${ap.perimeter.length}</strong> perimeter edges · <strong>${(ap.openings || []).length}</strong> openings</span>`
@@ -1057,6 +1083,10 @@
         else { currentWinMat.color.set(0x9ec9f5); currentWinMat.emissive.set(0xbcd9ff); currentWinMat.emissiveIntensity = 0.85; }
       }
       for (const L of dayLights) L.visible = !n;
+      for (const s of streetLights) { // Sebastiana St glows dimly at night only
+        s.light.visible = n;
+        s.headMat.emissiveIntensity = n ? 1.6 : 0;
+      }
       syncLightButton(); // keep the toolbar button in sync (initial load, solar flips)
     }
 
@@ -1457,7 +1487,32 @@
         }
       } catch (e) { /* keep last state */ }
     }
-    setInterval(refreshLiveStatus, 5000);
+    // ── Live event stream (SSE): the layout updates the moment something happens ──
+    let refreshTimer = null;
+    function scheduleRefresh() { // debounce bursts (e.g. presence flicker) into one status pass
+      if (refreshTimer) return;
+      refreshTimer = setTimeout(() => { refreshTimer = null; refreshLiveStatus(); }, 250);
+    }
+    function setSseDot(up) {
+      const el = document.getElementById('sse-dot');
+      if (!el) return;
+      el.textContent = up ? '● live' : '○ reconnecting';
+      el.style.color = up ? '#34d399' : '#f59e0b';
+    }
+    function connectEvents() {
+      if (eventSource || typeof EventSource === 'undefined') return;
+      eventSource = new EventSource('/api/events/stream');
+      for (const t of ['presence_detected', 'presence_cleared', 'illuminance_changed',
+                       'illuminance_measurement', 'device_online', 'device_offline',
+                       'device_connected', 'device_disconnected']) {
+        eventSource.addEventListener(t, scheduleRefresh);
+      }
+      eventSource.addEventListener('connected', () => { sseUp = true; setSseDot(true); refreshLiveStatus(); });
+      eventSource.onerror = () => { sseUp = false; setSseDot(false); }; // EventSource auto-reconnects
+    }
+    connectEvents();
+    setInterval(() => { if (!sseUp) refreshLiveStatus(); }, 5000); // fallback while the stream is down
+    setInterval(refreshLiveStatus, 60000);                          // slow resync while it's healthy
 
     async function loadPlans() {
       try {
