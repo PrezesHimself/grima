@@ -7,6 +7,7 @@
       "description": "Traced 1:1 from the SVG floor plan: closed 7-vertex perimeter + 7 interior wall segments, extruded to 3.2 m (real ceiling height). Single uniform scale anchored at drawing depth 544 px = 13.0 m (~2.39 cm/px), origin at outline top-left; width works out to 7.15 m. Room names from source labels with user corrections: 'terrace' = second bedroom, east shaft + middle connector = one L-shaped corridor (main-entrance space), hall + bedroom 2 = one space (bedroom 2), 'study' = bathroom (its corridor-facing corner is chamfered 45°, door on the cut edge). Openings: main entrance door on the west wall (y ≈ 6.58) into the corridor, stone-framed entrance (no door) kitchen↔living room, framed doors bedroom↔living room (y ≈ 10.75), bedroom 2↔corridor (x ≈ 6.24), a balcony door on bedroom 2's slanted exterior wall, and a 2 m open passage inside bedroom 2 (no door/window); double doors (closed) living room↔corridor (x ≈ 5.81); three windows on the south wall, which faces SW Sebastiana Street; walls are cut around all openings. Room areas computed from wall geometry; ground marks: street, balcony, staircase, plus subtle perimeter segment lengths outside the building. Furniture from the Airbnb photos: bedroom bed with headboard on the west wall + SW-corner desk (photo-verified via sebastiana_4), bedroom 2 bed estimated against the east wall (no photo of that room). Exterior length marks are split per room section via exteriorLabels (entrance/corridor/bedroom boundaries); listing says 75 m² but the traced footprint computes to ≈71 m² — real tape measurements pending. Lighting model: daylight enters only through the three south windows and the balcony door (rendered as light sources); the Shelly eye at (3.04, 6.2) watches the windowless corridor, so detected light there means a carried light source.",
       "footprint": { "width": 7.15, "depth": 13.0 },
       "wallHeight": 3.2,
+      "streetLevel": -3.4,
       "wallThickness": 0.2,
       "perimeter": [
         [0.0, 13.0],
@@ -53,7 +54,7 @@
         { "name": "LIVING ROOM", "center": [5.14, 10.18], "area": 22.6 }
       ],
       "groundLabels": [
-        { "text": "SW SEBASTIANA STREET", "center": [3.58, 14.4], "scale": 0.014 },
+        { "text": "SW SEBASTIANA STREET", "center": [3.58, 14.4], "scale": 0.014, "atStreet": true },
         { "text": "STAIRCASE", "center": [1.9, 6.58] },
         { "text": "BALCONY", "center": [2.83, -0.15] }
       ],

@@ -157,8 +157,13 @@ const server = http.createServer(async (req, res) => {
       version: pkg.version,
       units: plans.units,
       count: apartments.length,
+      schemaDoc: '/apartments-schema.md',
       apartments
     }, isHead);
+  }
+
+  if ((pathname === '/apartments-schema.md' || pathname === '/api/apartments/schema') && (isGet || isHead)) {
+    return serveFile(res, path.join(__dirname, 'public', 'apartments-schema.md'), 'text/markdown; charset=utf-8', isHead);
   }
 
   if (pathname === '/api/shelly/webhook' && req.method === 'POST') {
