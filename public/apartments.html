@@ -179,7 +179,8 @@
         <div class="toolbar-btns">
           <button class="btn btn-secondary active-view" id="btn-3d" onclick="setView('3d')">🎥 3D View</button>
           <button class="btn btn-secondary" id="btn-top" onclick="setView('top')">⬇ Top View</button>
-          <button class="btn btn-secondary active-view" id="btn-ghost" onclick="toggleGhostWalls()">📏 Solid Walls</button>
+          <button class="btn btn-secondary active-view" id="btn-ghost" onclick="toggleGhostWalls()">👻 Ghost Walls</button>
+          <button class="btn btn-secondary" id="btn-third" onclick="toggleThirdWalls()">📏 ⅓ Walls</button>
           <button class="btn btn-secondary active-view" id="btn-furn" onclick="toggleFurniture()">🛏 Furniture</button>
           <button class="btn btn-secondary" id="btn-labels" onclick="toggleRoomLabels()">🏷 Room Labels</button>
           <button class="btn btn-secondary" id="btn-light" onclick="toggleLightMode()">🌙 Night</button>
@@ -239,8 +240,9 @@
     let hoverMeshes = [];        // meshes eligible for tooltip raycasting
     let pickMeshes = [];         // meshes eligible for point picking (floor + walls)
     let planBounds = { W: 10, D: 10 };
-    let ghostWalls = true;      // default view: full-height transparent walls — ceiling stays at the
-                                // real height and walls still block light (shadows), only opacity drops
+    let ghostWalls = true;      // wall opacity mode: full-height transparent walls (default)
+    let thirdWalls = false;     // wall height mode: slabs drawn at 1/3 height — the apartment stays
+                                // 3.2 m (ceiling lamp, labels, light-blocking proxies at true height)
     let showFurniture = true;    // beds / desks from plans.json
     let furnitureGroup = null;   // THREE.Group of the current plan's furniture
     let showRoomLabels = false;  // room name sprites + area marks — hidden by default
@@ -405,7 +407,8 @@
 
       const g = new THREE.Group();
       planGroup = g;
-      const H = ap.wallHeight || 1.13; // always the real height — ghost mode changes opacity, not geometry
+      const Htrue = ap.wallHeight || 1.13;         // real apartment height (ceiling, lamp, labels) — never scales
+      const H = thirdWalls ? Htrue / 3 : Htrue;    // drawn wall-slab height (⅓ view)
       const T = ap.wallThickness || 0.2;
       const HT = T / 2;
 
@@ -458,12 +461,23 @@
       function addWallBox(p1, p2, label) {
         const plen = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
         if (plen < 1e-6) return;
+        const ry = -Math.atan2(p2[1] - p1[1], p2[0] - p1[0]);
+        const cx = (p1[0] + p2[0]) / 2, cz = (p1[1] + p2[1]) / 2;
         const m = new THREE.Mesh(new THREE.BoxGeometry(plen, H, T), wallMat);
-        m.position.set((p1[0] + p2[0]) / 2, H / 2, (p1[1] + p2[1]) / 2);
-        m.rotation.y = -Math.atan2(p2[1] - p1[1], p2[0] - p1[0]);
-        m.castShadow = true; m.receiveShadow = true;
+        m.position.set(cx, H / 2, cz);
+        m.rotation.y = ry;
+        // ⅓ view: visible slab is short — an invisible full-height proxy keeps casting
+        // shadows so the walls still block light (the apartment stays 3.2 m tall)
+        m.castShadow = !thirdWalls; m.receiveShadow = true;
         m.userData.label = label;
         g.add(m); hoverMeshes.push(m); pickMeshes.push(m);
+        if (thirdWalls) {
+          const p = new THREE.Mesh(new THREE.BoxGeometry(plen, Htrue, T), proxyWallMat);
+          p.position.set(cx, Htrue / 2, cz);
+          p.rotation.y = ry;
+          p.castShadow = true; // shadow pass ignores opacity → full-height light blocking
+          g.add(p);
+        }
       }
 
       // Perimeter polygon support (real footprint) vs legacy bounding-box plans
@@ -484,6 +498,8 @@
 
       const wallMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.85, metalness: 0.05 });
       if (ghostWalls) { wallMat.transparent = true; wallMat.opacity = 0.28; wallMat.depthWrite = false; }
+      // invisible full-height shadow casters for ⅓ view — short slabs still block light
+      const proxyWallMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
       const winMat = new THREE.MeshStandardMaterial({ color: 0x9ec9f5, emissive: 0xbcd9ff, emissiveIntensity: 0.85, transparent: true, opacity: 0.55, roughness: 0.3, metalness: 0.1, depthWrite: false });
       currentWinMat = winMat; // day/night mode adjusts it
       const doorMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.42, roughness: 0.5, depthWrite: false });
@@ -626,6 +642,14 @@
           pts.map(([x, y]) => new THREE.Vector3(x, H + 0.015, y))
         );
         g.add(new THREE.LineLoop(loop, new THREE.LineBasicMaterial({ color: 0x64748b, transparent: true, opacity: 0.5 })));
+        if (thirdWalls) { // faint dashed line where the real ceiling plane actually is
+          const ceil = new THREE.LineLoop(
+            new THREE.BufferGeometry().setFromPoints(pts.map(([x, y]) => new THREE.Vector3(x, Htrue + 0.015, y))),
+            new THREE.LineDashedMaterial({ color: 0x94a3b8, transparent: true, opacity: 0.6, dashSize: 0.18, gapSize: 0.12 })
+          );
+          ceil.computeLineDistances();
+          g.add(ceil);
+        }
       } else {
         // Legacy plans without a perimeter: rectangular slab + full grid
         const floor = new THREE.Mesh(
@@ -826,7 +850,7 @@
       rl.visible = showRoomLabels;
       for (const r of (ap.rooms || [])) {
         const s = makeTextSprite(r.name);
-        s.position.set(r.center[0], H + 0.55, r.center[1]);
+        s.position.set(r.center[0], Htrue + 0.55, r.center[1]); // at the real ceiling height even in ⅓ view
         rl.add(s);
         if (r.area != null) {
           const f = makeFloorLabel(r.area.toFixed(1) + ' m²', { color: '#86efac' });
@@ -949,16 +973,16 @@
         const ly = s.lightPos ? s.lightPos[1] : cz;
         // Ceiling light: hangs from the ceiling (3.2 m in full-wall view), steady — no flicker
         const pl = new THREE.PointLight(0xffd27d, 0, 6, 2); // off until light is detected
-        pl.position.set(lx, H - 0.2, ly);
+        pl.position.set(lx, Htrue - 0.2, ly);
         pl.visible = false;
         // small fixture marker on the ceiling so the light position is visible even when off
         const fixture = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.05, 20),
           new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.6 }));
-        fixture.position.set(lx, H - 0.03, ly);
+        fixture.position.set(lx, Htrue - 0.03, ly);
         // visible ball of light — shown while the corridor reports light (or in sim mode)
         const ballMat = new THREE.MeshBasicMaterial({ color: 0xffe9b3 });
         const ball = new THREE.Mesh(new THREE.SphereGeometry(0.15, 20, 14), ballMat);
-        ball.position.set(lx, H - 0.18, ly);
+        ball.position.set(lx, Htrue - 0.18, ly);
         ball.visible = false;
         // Presence marker: pulsing ring + person figure at the sensor spot,
         // shown on the layout while the zone reports movement
@@ -992,10 +1016,11 @@
       const areaSpan = hasPerimeter
         ? `<span>Area: <strong>≈ ${polygonArea(ap.perimeter).toFixed(1)} m²</strong></span>`
         : '';
+      const modeTags = [ghostWalls ? 'ghost' : '', thirdWalls ? '⅓ view' : ''].filter(Boolean).join(' + ');
       document.getElementById('plan-meta').innerHTML =
         `<span><strong>${escapeHtml(ap.name)}</strong></span>` +
         `<span>Footprint: <strong>${W} m × ${D} m</strong></span>` + areaSpan +
-        `<span>Wall height: <strong>${H} m</strong>${ghostWalls ? ' (ghost walls)' : ''}</span>` +
+        `<span>Wall height: <strong>${Htrue} m</strong>${modeTags ? ` (${modeTags})` : ''}</span>` +
         `<span>Wall thickness: <strong>${T} m</strong></span>` +
         (hasPerimeter
           ? `<span><strong>${ap.perimeter.length}</strong> perimeter edges · <strong>${(ap.openings || []).length}</strong> openings</span>`
@@ -1086,9 +1111,14 @@
     function toggleGhostWalls() {
       if (!current) return;
       ghostWalls = !ghostWalls;
-      const btn = document.getElementById('btn-ghost');
-      btn.classList.toggle('active-view', ghostWalls);
-      btn.textContent = ghostWalls ? '📏 Solid Walls' : '📏 Ghost Walls';
+      document.getElementById('btn-ghost').classList.toggle('active-view', ghostWalls);
+      buildPlan(current, { keepCamera: true });
+    }
+
+    function toggleThirdWalls() {
+      if (!current) return;
+      thirdWalls = !thirdWalls;
+      document.getElementById('btn-third').classList.toggle('active-view', thirdWalls);
       buildPlan(current, { keepCamera: true });
     }
 
