@@ -4,7 +4,7 @@
     {
       "id": "sebastiana",
       "name": "Sebastiana (75 m²)",
-      "description": "Traced 1:1 from the SVG floor plan: closed 7-vertex perimeter + 7 interior wall segments, extruded to 2.5 m height. Single uniform scale anchored at drawing depth 544 px = 13.0 m (~2.39 cm/px), origin at outline top-left; width works out to 7.15 m. Room names from source labels with user corrections: 'terrace' = second bedroom, east shaft + middle connector = one L-shaped corridor (main-entrance space), hall + bedroom 2 = one space (bedroom 2), 'study' = bathroom (its corridor-facing corner is chamfered 45°, door on the cut edge). Openings: main entrance door on the west wall (y ≈ 6.58) into the corridor, stone-framed entrance (no door) kitchen↔living room, framed doors bedroom↔living room (y ≈ 10.75), bedroom 2↔corridor (x ≈ 6.24), a balcony door on bedroom 2's slanted exterior wall, and a 2 m open passage inside bedroom 2 (no door/window); open double doors living room↔corridor (x ≈ 5.81); three windows on the south wall, which faces SW Sebastiana Street; walls are cut around all openings. Room areas computed from wall geometry; ground marks: street, balcony, staircase, plus subtle perimeter segment lengths outside the building.",
+      "description": "Traced 1:1 from the SVG floor plan: closed 7-vertex perimeter + 7 interior wall segments, extruded to 2.5 m height. Single uniform scale anchored at drawing depth 544 px = 13.0 m (~2.39 cm/px), origin at outline top-left; width works out to 7.15 m. Room names from source labels with user corrections: 'terrace' = second bedroom, east shaft + middle connector = one L-shaped corridor (main-entrance space), hall + bedroom 2 = one space (bedroom 2), 'study' = bathroom (its corridor-facing corner is chamfered 45°, door on the cut edge). Openings: main entrance door on the west wall (y ≈ 6.58) into the corridor, stone-framed entrance (no door) kitchen↔living room, framed doors bedroom↔living room (y ≈ 10.75), bedroom 2↔corridor (x ≈ 6.24), a balcony door on bedroom 2's slanted exterior wall, and a 2 m open passage inside bedroom 2 (no door/window); open double doors living room↔corridor (x ≈ 5.81); three windows on the south wall, which faces SW Sebastiana Street; walls are cut around all openings. Room areas computed from wall geometry; ground marks: street, balcony, staircase, plus subtle perimeter segment lengths outside the building. Furniture from the Airbnb photos: bedroom bed with headboard on the west wall + SW-corner desk (photo-verified via sebastiana_4), bedroom 2 bed estimated against the east wall (no photo of that room).",
       "footprint": { "width": 7.15, "depth": 13.0 },
       "wallHeight": 2.5,
       "wallThickness": 0.2,
@@ -56,6 +56,34 @@
         { "text": "SW SEBASTIANA STREET", "center": [3.58, 14.4], "scale": 0.014 },
         { "text": "STAIRCASE", "center": [1.9, 6.58] },
         { "text": "BALCONY", "center": [2.83, -0.15] }
+      ],
+      "furniture": [
+        {
+          "type": "bed",
+          "label": "Bed (bedroom) — headboard on west wall · photo-verified",
+          "center": [1.0, 11.1],
+          "size": [2.0, 1.6],
+          "rotation": 0,
+          "head": "west",
+          "note": "From Airbnb photo sebastiana_4: camera faced the SW corner (south window on left, headboard wall on right) — the only geometry consistent with both walls meeting at a 90° corner. Foot points east toward the door; floor lamp between bed and desk."
+        },
+        {
+          "type": "desk",
+          "label": "Desk/dresser (bedroom, SW corner) · photo-verified",
+          "center": [0.95, 12.7],
+          "size": [1.2, 0.45],
+          "rotation": 0,
+          "note": "Against the south wall under the bear/fox prints, west of the window (photo sebastiana_4)."
+        },
+        {
+          "type": "bed",
+          "label": "Bed (bedroom 2) — estimated, no photo of this room",
+          "center": [6.15, 1.15],
+          "size": [2.0, 1.6],
+          "rotation": 0,
+          "head": "east",
+          "note": "No Airbnb photo shows bedroom 2. Placed with headboard on the east wall so the south-side passage and door stay clear and the balcony door on the NW diagonal is unobstructed. Adjust if known."
+        }
       ]
     }
   ]

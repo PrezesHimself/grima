@@ -180,6 +180,7 @@
           <button class="btn btn-secondary active-view" id="btn-3d" onclick="setView('3d')">🎥 3D View</button>
           <button class="btn btn-secondary" id="btn-top" onclick="setView('top')">⬇ Top View</button>
           <button class="btn btn-secondary active-view" id="btn-low" onclick="toggleLowWalls()">📏 Full Walls</button>
+          <button class="btn btn-secondary active-view" id="btn-furn" onclick="toggleFurniture()">🛏 Furniture</button>
           <button class="btn btn-secondary" onclick="resetCamera()">↺ Reset</button>
           <button class="btn" id="btn-obj" onclick="downloadObj()">⬇ Download .obj</button>
         </div>
@@ -202,6 +203,8 @@
         <span><i class="swatch" style="background:rgba(96,165,250,0.55);"></i> Window</span>
         <span><i class="swatch" style="background:rgba(251,191,36,0.55);"></i> Door / portal</span>
         <span><i class="swatch" style="background:#d6c7a1;"></i> Stone frame / archway</span>
+        <span><i class="swatch" style="background:#e2d9c8; border:1px solid #a8987f;"></i> Bed (mattress)</span>
+        <span><i class="swatch" style="background:#8b6f4e;"></i> Wood furniture / headboard</span>
         <span><i class="swatch" style="background:#1f2937; border:1px solid #475569;"></i> Floor slab (1 m grid)</span>
       </div>
     </div>
@@ -231,6 +234,8 @@
     let pickMeshes = [];         // meshes eligible for point picking (floor + walls)
     let planBounds = { W: 10, D: 10 };
     let wallScale = 1 / 3;       // start with low walls so the interior is visible (toggle for full)
+    let showFurniture = true;    // beds / desks from plans.json
+    let furnitureGroup = null;   // THREE.Group of the current plan's furniture
 
     // three.js singletons
     const wrap = document.getElementById('canvas-wrap');
@@ -710,6 +715,52 @@
         g.add(f);
       }
 
+      // Furniture (beds / desks) — simple boxes from plans.json `furniture`
+      const fg = new THREE.Group();
+      fg.visible = showFurniture;
+      const linenMat = new THREE.MeshStandardMaterial({ color: 0xe2d9c8, roughness: 0.9 });
+      const pillowMat = new THREE.MeshStandardMaterial({ color: 0xf5f1e8, roughness: 0.95 });
+      const woodMat = new THREE.MeshStandardMaterial({ color: 0x8b6f4e, roughness: 0.7 });
+      for (const f of (ap.furniture || [])) {
+        const [w, d] = f.size;
+        const cx = f.center[0], cz = f.center[1];
+        const label = f.label || (f.type || 'furniture');
+        // each item in its own sub-group so per-item rotation works independently
+        const item = new THREE.Group();
+        item.position.set(cx, 0, cz);
+        item.rotation.y = -(f.rotation || 0) * Math.PI / 180; // plan CCW° -> three.js Y
+        fg.add(item);
+        const addBox = (bw, bh, bd, x, y, z, mat) => {
+          const m = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), mat);
+          m.position.set(x, y, z); // local coords: 0,0 = item center
+          m.castShadow = true; m.receiveShadow = true;
+          m.userData.label = label + (f.note ? `\n${f.note}` : '');
+          item.add(m); hoverMeshes.push(m);
+        };
+        if (f.type === 'bed') {
+          const mH = 0.45, hH = 1.1, t = 0.08; // mattress / headboard height / thickness
+          addBox(w, mH, d, 0, mH / 2, 0, linenMat);                             // mattress + base
+          if (f.head === 'west')       { addBox(t, hH, d, -w / 2 + t / 2, hH / 2, 0, woodMat);
+            addBox(0.35, 0.12, 0.6, -w / 2 + 0.28, mH + 0.06, -d / 4, pillowMat);
+            addBox(0.35, 0.12, 0.6, -w / 2 + 0.28, mH + 0.06, d / 4, pillowMat); }
+          else if (f.head === 'east')  { addBox(t, hH, d, w / 2 - t / 2, hH / 2, 0, woodMat);
+            addBox(0.35, 0.12, 0.6, w / 2 - 0.28, mH + 0.06, -d / 4, pillowMat);
+            addBox(0.35, 0.12, 0.6, w / 2 - 0.28, mH + 0.06, d / 4, pillowMat); }
+          else if (f.head === 'north') { addBox(w, hH, t, 0, hH / 2, -d / 2 + t / 2, woodMat);
+            addBox(0.6, 0.12, 0.35, -w / 4, mH + 0.06, -d / 2 + 0.28, pillowMat);
+            addBox(0.6, 0.12, 0.35, w / 4, mH + 0.06, -d / 2 + 0.28, pillowMat); }
+          else if (f.head === 'south') { addBox(w, hH, t, 0, hH / 2, d / 2 - t / 2, woodMat);
+            addBox(0.6, 0.12, 0.35, -w / 4, mH + 0.06, d / 2 - 0.28, pillowMat);
+            addBox(0.6, 0.12, 0.35, w / 4, mH + 0.06, d / 2 - 0.28, pillowMat); }
+        } else {
+          // desk / dresser / generic box
+          const h = f.type === 'desk' ? 0.75 : 0.9;
+          addBox(w, h, d, 0, h / 2, 0, woodMat);
+        }
+      }
+      g.add(fg);
+      furnitureGroup = fg;
+
       // Center the plan at the origin
       g.position.set(-W / 2, 0, -D / 2);
       scene.add(g);
@@ -729,7 +780,9 @@
         `<span>Wall thickness: <strong>${T} m</strong></span>` +
         (hasPerimeter
           ? `<span><strong>${ap.perimeter.length}</strong> perimeter edges · <strong>${(ap.openings || []).length}</strong> openings</span>`
-          : `<span><strong>${nH + nV}</strong> wall segments · <strong>${(ap.openings || []).length}</strong> openings</span>`);
+          : `<span><strong>${nH + nV}</strong> wall segments · <strong>${(ap.openings || []).length}</strong> openings</span>`)
+        + ((ap.furniture || []).length
+          ? `<span><strong>${ap.furniture.length}</strong> furniture items</span>` : '');
       document.getElementById('plan-desc').textContent = ap.description || '';
 
       if (!opts.keepCamera) resetCamera();
@@ -771,6 +824,13 @@
       btn.classList.toggle('active-view', wallScale < 1);
       btn.textContent = wallScale < 1 ? '📏 Full Walls' : '📏 ⅓ Walls';
       buildPlan(current, { keepCamera: true });
+    }
+
+    function toggleFurniture() {
+      showFurniture = !showFurniture;
+      const btn = document.getElementById('btn-furn');
+      btn.classList.toggle('active-view', showFurniture);
+      if (furnitureGroup) furnitureGroup.visible = showFurniture;
     }
 
     // ---------------- .obj export ----------------
