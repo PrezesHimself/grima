@@ -204,6 +204,7 @@
         <span><i class="swatch" style="background:rgba(251,191,36,0.55);"></i> Door / portal</span>
         <span><i class="swatch" style="background:#d6c7a1;"></i> Stone frame / archway</span>
         <span><i class="swatch" style="background:#e2d9c8; border:1px solid #a8987f;"></i> Bed (mattress)</span>
+        <span><i class="swatch" style="background:#e07a3f;"></i> Sofa / fabric</span>
         <span><i class="swatch" style="background:#8b6f4e;"></i> Wood furniture / headboard</span>
         <span><i class="swatch" style="background:#1f2937; border:1px solid #475569;"></i> Floor slab (1 m grid)</span>
       </div>
@@ -830,9 +831,32 @@
             addBox(0.6, 0.12, 0.35, -w / 4, mH + 0.06, d / 2 - 0.28, pillowMat);
             addBox(0.6, 0.12, 0.35, w / 4, mH + 0.06, d / 2 - 0.28, pillowMat); }
         } else {
-          // desk / dresser / generic box
-          const h = f.type === 'desk' ? 0.75 : 0.9;
-          addBox(w, h, d, 0, h / 2, 0, woodMat);
+          // everything else: per-item color / height / elevation (e.g. TV on a dresser)
+          const mat = new THREE.MeshStandardMaterial({
+            color: f.color != null ? f.color : 0x8b6f4e,
+            roughness: f.roughness != null ? f.roughness : 0.75
+          });
+          const elev = f.elev || 0;
+          const lift = (bw, bh, bd, x, y, z) => addBox(bw, bh, bd, x, elev + y, z, mat);
+          if (f.type === 'sofa') {
+            // seat + backrest on the "back" side
+            const seatH = f.height || 0.42, backH = 0.85, bt = 0.18;
+            lift(w, seatH, d, 0, seatH / 2, 0);
+            if (f.back === 'west')       lift(bt, backH, d, -w / 2 + bt / 2, backH / 2, 0);
+            else if (f.back === 'east')  lift(bt, backH, d, w / 2 - bt / 2, backH / 2, 0);
+            else if (f.back === 'north') lift(w, backH, bt, 0, backH / 2, -d / 2 + bt / 2);
+            else if (f.back === 'south') lift(w, backH, bt, 0, backH / 2, d / 2 - bt / 2);
+          } else if (f.type === 'lamp') {
+            // floor lamp: base + slim pole + shade
+            const h = f.height || 1.65;
+            lift(0.3, 0.04, 0.3, 0, 0.02, 0);
+            lift(0.05, h - 0.42, 0.05, 0, 0.04 + (h - 0.42) / 2, 0);
+            lift(0.42, 0.38, 0.42, 0, h - 0.19, 0);
+          } else {
+            // desk / table / chair / cabinet / rug / tv / generic box
+            const h = f.height != null ? f.height : (f.type === 'desk' ? 0.75 : 0.9);
+            lift(w, h, d, 0, h / 2, 0);
+          }
         }
       }
       g.add(fg);
