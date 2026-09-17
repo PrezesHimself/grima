@@ -4,7 +4,7 @@
     {
       "id": "sebastiana",
       "name": "Sebastiana (75 m²)",
-      "description": "Traced 1:1 from the SVG floor plan: closed 7-vertex perimeter + 7 interior wall segments, extruded to 2.5 m height. Single uniform scale anchored at drawing depth 544 px = 13.0 m (~2.39 cm/px), origin at outline top-left; width works out to 7.15 m. Room names from source labels with user corrections: 'terrace' = second bedroom, east shaft + middle connector = one L-shaped corridor (main-entrance space), hall + bedroom 2 = one space (bedroom 2), 'study' = bathroom (its corridor-facing corner is chamfered 45°, door on the cut edge). Openings: main entrance door on the west wall (y ≈ 6.58) into the corridor, stone-framed entrance (no door) kitchen↔living room, framed doors bedroom↔living room (y ≈ 10.75), bedroom 2↔corridor (x ≈ 6.24), a balcony door on bedroom 2's slanted exterior wall, and a 2 m open passage inside bedroom 2 (no door/window); open double doors living room↔corridor (x ≈ 5.81); three windows on the south wall, which faces SW Sebastiana Street; walls are cut around all openings. Room areas computed from wall geometry; ground marks: street, balcony, staircase, plus subtle perimeter segment lengths outside the building. Furniture from the Airbnb photos: bedroom bed with headboard on the west wall + SW-corner desk (photo-verified via sebastiana_4), bedroom 2 bed estimated against the east wall (no photo of that room). Exterior length marks are split per room section via exteriorLabels (entrance/corridor/bedroom boundaries); listing says 75 m² but the traced footprint computes to ≈71 m² — real tape measurements pending.",
+      "description": "Traced 1:1 from the SVG floor plan: closed 7-vertex perimeter + 7 interior wall segments, extruded to 2.5 m height. Single uniform scale anchored at drawing depth 544 px = 13.0 m (~2.39 cm/px), origin at outline top-left; width works out to 7.15 m. Room names from source labels with user corrections: 'terrace' = second bedroom, east shaft + middle connector = one L-shaped corridor (main-entrance space), hall + bedroom 2 = one space (bedroom 2), 'study' = bathroom (its corridor-facing corner is chamfered 45°, door on the cut edge). Openings: main entrance door on the west wall (y ≈ 6.58) into the corridor, stone-framed entrance (no door) kitchen↔living room, framed doors bedroom↔living room (y ≈ 10.75), bedroom 2↔corridor (x ≈ 6.24), a balcony door on bedroom 2's slanted exterior wall, and a 2 m open passage inside bedroom 2 (no door/window); open double doors living room↔corridor (x ≈ 5.81); three windows on the south wall, which faces SW Sebastiana Street; walls are cut around all openings. Room areas computed from wall geometry; ground marks: street, balcony, staircase, plus subtle perimeter segment lengths outside the building. Furniture from the Airbnb photos: bedroom bed with headboard on the west wall + SW-corner desk (photo-verified via sebastiana_4), bedroom 2 bed estimated against the east wall (no photo of that room). Exterior length marks are split per room section via exteriorLabels (entrance/corridor/bedroom boundaries); listing says 75 m² but the traced footprint computes to ≈71 m² — real tape measurements pending. Lighting model: daylight enters only through the three south windows and the balcony door (rendered as light sources); the Shelly eye at (3.04, 6.2) watches the windowless corridor, so detected light there means a carried light source.",
       "footprint": { "width": 7.15, "depth": 13.0 },
       "wallHeight": 2.5,
       "wallThickness": 0.2,
@@ -39,7 +39,7 @@
         { "type": "door", "axis": "v", "from": 10.25, "to": 11.25, "pos": 3.13, "label": "bedroom ↔ living room" },
         { "type": "passage", "axis": "h", "from": 3.41, "to": 5.41, "pos": 2.51, "label": "bedroom 2 — open passage" },
         { "type": "door", "axis": "h", "from": 5.79, "to": 6.69, "pos": 2.51, "label": "bedroom 2 ↔ corridor" },
-        { "type": "door", "axis": "diag", "a": [3.23, 0.91], "b": [3.86, 0.27], "label": "balcony — bedroom 2" },
+        { "type": "door", "axis": "diag", "a": [3.23, 0.91], "b": [3.86, 0.27], "label": "balcony — bedroom 2", "lightSource": true },
         { "type": "window", "axis": "h", "from": 1.38, "to": 2.38, "pos": 13.0, "label": "bedroom — Sebastiana St (SW)" },
         { "type": "window", "axis": "h", "from": 4.16, "to": 5.16, "pos": 13.0, "label": "living room — Sebastiana St (SW)" },
         { "type": "window", "axis": "h", "from": 5.71, "to": 6.71, "pos": 13.0, "label": "living room — Sebastiana St (SW)" }
@@ -62,6 +62,14 @@
         { "edge": 3, "cuts": [1.45, 4.87], "labels": ["entrance + corridor", "corridor → bedroom 2", "bedroom 2 west wall"] },
         { "edge": 6, "cuts": [2.51, 7.38], "labels": ["bedroom 2", "corridor", "living room"] },
         { "edge": 7, "cuts": [4.02], "labels": ["living room", "bedroom"] }
+      ],
+      "sensors": [
+        {
+          "type": "shelly",
+          "label": "Shelly Presence Gen4 — Corridor (entrance)",
+          "center": [3.04, 6.2],
+          "note": "Main-entrance eye, pointed at guests coming in through the front door. The corridor has no windows and no balcony access, so if this sensor reports light there, a person is carrying their own light source — the marker glows warm in the 3D view when that happens."
+        }
       ],
       "furniture": [
         {

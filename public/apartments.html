@@ -207,6 +207,7 @@
         <span><i class="swatch" style="background:#e2d9c8; border:1px solid #a8987f;"></i> Bed (mattress)</span>
         <span><i class="swatch" style="background:#e07a3f;"></i> Sofa / fabric</span>
         <span><i class="swatch" style="background:#8b6f4e;"></i> Wood furniture / headboard</span>
+        <span><i class="swatch" style="background:#fbbf24;"></i> Shelly eye (glows when it detects light in the windowless corridor)</span>
         <span><i class="swatch" style="background:#1f2937; border:1px solid #475569;"></i> Floor slab (1 m grid)</span>
       </div>
     </div>
@@ -244,6 +245,7 @@
                                            // survives low-wall rebuilds, cleared on apartment switch
     let groundSquare = null;     // { group, fillMat } of the last floor-press glow
     let tvScreens = [];          // [{ mac, mat, online }] — TV screens linked to Grima registry devices
+    let shellyRefs = [];         // [{ lensMat, light, baseIntensity, labelBase, meshes }] — Shelly corridor eye
 
     // three.js singletons
     const wrap = document.getElementById('canvas-wrap');
@@ -268,8 +270,10 @@
     controls.maxDistance = 60;
 
     // Lights
-    scene.add(new THREE.AmbientLight(0xffffff, 0.55));
-    const hemi = new THREE.HemisphereLight(0xbfd4ff, 0x1a2030, 0.35);
+    // Daylight model: light enters only through the windows + balcony door
+    // (they are rendered as emissive light sources below), so ambient stays low
+    scene.add(new THREE.AmbientLight(0xffffff, 0.42));
+    const hemi = new THREE.HemisphereLight(0xbfd4ff, 0x1a2030, 0.3);
     scene.add(hemi);
     const dir = new THREE.DirectionalLight(0xffffff, 0.9);
     dir.position.set(12, 16, 8);
@@ -468,7 +472,7 @@
       planBounds = { W, D };
 
       const wallMat = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.85, metalness: 0.05 });
-      const winMat = new THREE.MeshStandardMaterial({ color: 0x60a5fa, transparent: true, opacity: 0.42, roughness: 0.3, metalness: 0.1, depthWrite: false });
+      const winMat = new THREE.MeshStandardMaterial({ color: 0x9ec9f5, emissive: 0xbcd9ff, emissiveIntensity: 0.85, transparent: true, opacity: 0.55, roughness: 0.3, metalness: 0.1, depthWrite: false });
       const doorMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.42, roughness: 0.5, depthWrite: false });
       const stoneMat = new THREE.MeshStandardMaterial({ color: 0xd6c7a1, roughness: 0.95, metalness: 0 });
 
@@ -701,7 +705,8 @@
             addRot(new THREE.BoxGeometry(Math.max(0.1, dlen - 2 * jw), lh, fd), stoneMat, midx, Hbase - lh / 2, midy);
             if (kind === 'door') {
               const hgt = Hbase - lh - 0.03;
-              addRot(new THREE.BoxGeometry(Math.max(0.1, dlen - 2 * jw), hgt, T * 0.55), doorMat, midx, hgt / 2, midy);
+              // lightSource doors (balcony entrance) glow like windows — daylight comes in through them
+              addRot(new THREE.BoxGeometry(Math.max(0.1, dlen - 2 * jw), hgt, T * 0.55), o.lightSource ? winMat : doorMat, midx, hgt / 2, midy);
             }
           }
           continue;
@@ -781,6 +786,24 @@
             addOpen(new THREE.BoxGeometry(fd, lh, inner), stoneMat, o.pos, glassTop + lh / 2, mid);
             addOpen(new THREE.BoxGeometry(T * 0.55, ghgt, inner), winMat, o.pos, gcy, mid);
           }
+        }
+      }
+
+      // Daylight sources: a point light just inside each window / light-source door
+      if (hasPerimeter) {
+        const cxA = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+        const cyA = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+        for (const o of (ap.openings || [])) {
+          if (o.type !== 'window' && !o.lightSource) continue;
+          let lx, ly;
+          if (o.a && o.b) { lx = (o.a[0] + o.b[0]) / 2; ly = (o.a[1] + o.b[1]) / 2; }
+          else if (o.axis === 'h') { lx = (o.from + o.to) / 2; ly = o.pos; }
+          else { lx = o.pos; ly = (o.from + o.to) / 2; }
+          const vx = cxA - lx, vy = cyA - ly;
+          const vl = Math.hypot(vx, vy) || 1;
+          const sun = new THREE.PointLight(0xd8eaff, 0.75, 6.5, 2);
+          sun.position.set(lx + (vx / vl) * 0.45, 1.0, ly + (vy / vl) * 0.45);
+          g.add(sun);
         }
       }
 
@@ -887,6 +910,31 @@
       }
       g.add(fg);
       furnitureGroup = fg;
+
+      // Sensors — Shelly presence/illuminance marker with a live status lens.
+      // The corridor is windowless, so a lit lens + warm light means someone
+      // carried a light source in there.
+      shellyRefs.length = 0;
+      const sensorBodyMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6 });
+      for (const s of (ap.sensors || [])) {
+        if (s.type !== 'shelly') continue;
+        const cx = s.center[0], cz = s.center[1];
+        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.22, 20), sensorBodyMat);
+        body.position.set(cx, 0.11, cz);
+        body.castShadow = true;
+        const lensMat = new THREE.MeshStandardMaterial({ color: 0x475569, emissive: 0x000000 });
+        const lens = new THREE.Mesh(new THREE.SphereGeometry(0.05, 16, 12), lensMat);
+        lens.position.set(cx, 0.27, cz);
+        const pl = new THREE.PointLight(0xffd27d, 0, 5, 2); // off until light is detected
+        pl.position.set(cx, 0.4, cz);
+        pl.visible = false;
+        g.add(body, lens, pl);
+        hoverMeshes.push(body, lens);
+        const fl = makeFloorLabel('SHELLY', { color: '#fbbf24', scale: 0.007 });
+        fl.position.set(cx, 0.02, cz + 0.36);
+        g.add(fl);
+        shellyRefs.push({ lensMat, light: pl, baseIntensity: 0, labelBase: s.label || 'Shelly sensor', meshes: [body, lens] });
+      }
 
       // Center the plan at the origin
       g.position.set(-W / 2, 0, -D / 2);
@@ -1153,6 +1201,7 @@
       updateTooltip();
       if (groundSquare) groundSquare.fillMat.opacity = 0.45 + 0.2 * Math.sin(performance.now() / 300); // glow pulse
       for (const tv of tvScreens) if (tv.online) tv.mat.color.setHSL(0.58, 0.75, 0.55 + 0.1 * Math.sin(performance.now() / 650)); // screen-on shimmer
+      for (const ref of shellyRefs) if (ref.light.visible) ref.light.intensity = ref.baseIntensity * (0.85 + 0.15 * Math.sin(performance.now() / 90)); // flashlight flicker
       renderer.render(scene, camera);
     })();
 
@@ -1173,24 +1222,45 @@
       document.querySelectorAll('.ap-pill').forEach(p => p.classList.toggle('active', p.dataset.id === id));
       // press marks belong to the previous plan — clear them on switch
       clearMarks();
-      if (current) { buildPlan(current); refreshTvStatus(); }
+      if (current) { buildPlan(current); refreshLiveStatus(); }
     }
 
-    // TV online status — poll Grima's device registry; the linked screen glows
-    // while the real TV is on the LAN, dark otherwise
-    async function refreshTvStatus() {
-      if (!tvScreens.length) return;
+    // Live device status: TV screen (registry) + Shelly corridor eye (illuminance)
+    async function refreshLiveStatus() {
+      if (!tvScreens.length && !shellyRefs.length) return;
       try {
-        const res = await fetch('/api/devices');
-        const data = await res.json();
-        const online = new Set((data.devices || []).map(d => String(d.mac).toLowerCase()));
+        const [devRes, shRes] = await Promise.all([fetch('/api/devices'), fetch('/api/shelly')]);
+        const devs = await devRes.json();
+        const onlineMacs = new Set((devs.devices || []).map(d => String(d.mac).toLowerCase()));
         for (const tv of tvScreens) {
-          tv.online = online.has(tv.mac);
+          tv.online = onlineMacs.has(tv.mac);
           if (!tv.online) tv.mat.color.set(0x111827);
         }
-      } catch (e) { /* keep dark */ }
+        const shArr = await shRes.json();
+        const sh = shArr.find(x => x && x.enabled !== false) || shArr[0] || null;
+        for (const ref of shellyRefs) {
+          const online = !!(sh && sh.online);
+          const lvl = sh?.illuminance?.level; // 'dark' | 'twilight' | 'bright'
+          const present = !!(sh?.presence?.present);
+          if (!online) {
+            ref.lensMat.color.set(0x475569); ref.lensMat.emissive.set(0x000000);
+            ref.light.visible = false;
+          } else if (lvl === 'dark') {
+            ref.lensMat.color.set(0x64748b); ref.lensMat.emissive.set(0x1e293b);
+            ref.light.visible = false;
+          } else {
+            // light in a windowless corridor = carried light source
+            ref.lensMat.color.set(0xfbbf24); ref.lensMat.emissive.set(0xf59e0b); ref.lensMat.emissiveIntensity = 1.2;
+            ref.baseIntensity = lvl === 'bright' ? 2.2 : 1.2;
+            ref.light.intensity = ref.baseIntensity;
+            ref.light.visible = true;
+          }
+          const status = online ? `illuminance: ${lvl || '?'} · presence: ${present ? 'DETECTED' : 'none'}` : 'offline';
+          for (const m of ref.meshes) m.userData.label = `${ref.labelBase}\n${status}`;
+        }
+      } catch (e) { /* keep last state */ }
     }
-    setInterval(refreshTvStatus, 10000);
+    setInterval(refreshLiveStatus, 5000);
 
     async function loadPlans() {
       try {
