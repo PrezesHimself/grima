@@ -207,7 +207,8 @@
         <span><i class="swatch" style="background:#e2d9c8; border:1px solid #a8987f;"></i> Bed (mattress)</span>
         <span><i class="swatch" style="background:#e07a3f;"></i> Sofa / fabric</span>
         <span><i class="swatch" style="background:#8b6f4e;"></i> Wood furniture / headboard</span>
-        <span><i class="swatch" style="background:#fbbf24;"></i> Shelly eye (glows when it detects light in the windowless corridor)</span>
+        <span><i class="swatch" style="background:#fbbf24;"></i> Shelly eye (amber = light detected in the windowless corridor)</span>
+        <span><i class="swatch" style="background:#f87171;"></i> Presence marker (pulses at the sensor spot while movement is detected)</span>
         <span><i class="swatch" style="background:#1f2937; border:1px solid #475569;"></i> Floor slab (1 m grid)</span>
       </div>
     </div>
@@ -929,12 +930,24 @@
         const pl = new THREE.PointLight(0xffd27d, 0, 5, 2); // off until light is detected
         pl.position.set(cx, 0.4, cz);
         pl.visible = false;
-        g.add(body, lens, pl);
+        // Presence marker: pulsing ring + person figure at the sensor spot,
+        // shown on the layout while the zone reports movement
+        const pg = new THREE.Group();
+        const ringMat = new THREE.MeshBasicMaterial({ color: 0xf87171, transparent: true, opacity: 0.65, depthWrite: false, side: THREE.DoubleSide });
+        const ring = new THREE.Mesh(new THREE.RingGeometry(0.28, 0.42, 32), ringMat);
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.y = 0.015;
+        const personMat = new THREE.MeshStandardMaterial({ color: 0xf87171, emissive: 0xef4444, emissiveIntensity: 0.9 });
+        const person = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.34, 4, 12), personMat);
+        person.position.y = 0.3;
+        pg.add(ring, person);
+        pg.visible = false;
+        g.add(body, lens, pl, pg);
         hoverMeshes.push(body, lens);
         const fl = makeFloorLabel('SHELLY', { color: '#fbbf24', scale: 0.007 });
         fl.position.set(cx, 0.02, cz + 0.36);
         g.add(fl);
-        shellyRefs.push({ lensMat, light: pl, baseIntensity: 0, labelBase: s.label || 'Shelly sensor', meshes: [body, lens] });
+        shellyRefs.push({ lensMat, light: pl, ringMat, presenceGroup: pg, baseIntensity: 0, labelBase: s.label || 'Shelly sensor', meshes: [body, lens] });
       }
 
       // Center the plan at the origin
@@ -1202,7 +1215,14 @@
       updateTooltip();
       if (groundSquare) groundSquare.fillMat.opacity = 0.45 + 0.2 * Math.sin(performance.now() / 300); // glow pulse
       for (const tv of tvScreens) if (tv.online) tv.mat.color.setHSL(0.58, 0.75, 0.55 + 0.1 * Math.sin(performance.now() / 650)); // screen-on shimmer
-      for (const ref of shellyRefs) if (ref.light.visible) ref.light.intensity = ref.baseIntensity * (0.85 + 0.15 * Math.sin(performance.now() / 90)); // flashlight flicker
+      for (const ref of shellyRefs) {
+        if (ref.light.visible) ref.light.intensity = ref.baseIntensity * (0.85 + 0.15 * Math.sin(performance.now() / 90)); // flashlight flicker
+        if (ref.presenceGroup.visible) { // presence pulse on the layout
+          const k = 1 + 0.25 * Math.sin(performance.now() / 260);
+          ref.presenceGroup.scale.set(k, 1, k);
+          ref.ringMat.opacity = 0.45 + 0.3 * Math.sin(performance.now() / 260);
+        }
+      }
       renderer.render(scene, camera);
     })();
 
@@ -1256,6 +1276,8 @@
             ref.light.intensity = ref.baseIntensity;
             ref.light.visible = true;
           }
+          // map the detection onto the layout: person marker at the sensor spot
+          ref.presenceGroup.visible = online && present;
           const status = online ? `illuminance: ${lvl || '?'} · presence: ${present ? 'DETECTED' : 'none'}` : 'offline';
           for (const m of ref.meshes) m.userData.label = `${ref.labelBase}\n${status}`;
         }

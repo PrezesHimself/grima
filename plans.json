@@ -68,7 +68,7 @@
           "type": "shelly",
           "label": "Shelly Presence Gen4 — Corridor (entrance)",
           "center": [3.04, 6.2],
-          "note": "Main-entrance eye, pointed at guests coming in through the front door. The corridor has no windows and no balcony access, so if this sensor reports light there, a person is carrying their own light source — the marker glows warm in the 3D view when that happens."
+          "note": "Main-entrance eye, pointed at guests coming in through the front door. The corridor has no windows and no balcony access, so if this sensor reports light there, a person is carrying their own light source — the marker glows warm in the 3D view when that happens. While it detects movement, a red pulsing person marker is placed on the layout at its spot (the sensor reports presence, not position within the zone)."
         }
       ],
       "furniture": [
