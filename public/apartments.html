@@ -179,7 +179,7 @@
         <div class="toolbar-btns">
           <button class="btn btn-secondary active-view" id="btn-3d" onclick="setView('3d')">🎥 3D View</button>
           <button class="btn btn-secondary" id="btn-top" onclick="setView('top')">⬇ Top View</button>
-          <button class="btn btn-secondary" id="btn-low" onclick="toggleLowWalls()">📏 ⅓ Walls</button>
+          <button class="btn btn-secondary active-view" id="btn-low" onclick="toggleLowWalls()">📏 Full Walls</button>
           <button class="btn btn-secondary" onclick="resetCamera()">↺ Reset</button>
           <button class="btn" id="btn-obj" onclick="downloadObj()">⬇ Download .obj</button>
         </div>
@@ -230,7 +230,7 @@
     let hoverMeshes = [];        // meshes eligible for tooltip raycasting
     let pickMeshes = [];         // meshes eligible for point picking (floor + walls)
     let planBounds = { W: 10, D: 10 };
-    let wallScale = 1;           // 1 = full wall height, 1/3 = low walls to see the interior
+    let wallScale = 1 / 3;       // start with low walls so the interior is visible (toggle for full)
 
     // three.js singletons
     const wrap = document.getElementById('canvas-wrap');
@@ -288,6 +288,33 @@
       const sprite = new THREE.Sprite(mat);
       sprite.scale.set(canvas.width * scale, canvas.height * scale, 1);
       return sprite;
+    }
+
+    // Flat label lying on the ground/floor plane (area marks, street & site marks)
+    function makeFloorLabel(text, { color = '#7dd3fc', scale = 0.011 } = {}) {
+      const pad = 14, fontPx = 40;
+      const canvas = document.createElement('canvas');
+      let ctx = canvas.getContext('2d');
+      ctx.font = `700 ${fontPx}px -apple-system, "Segoe UI", Roboto, sans-serif`;
+      const tw = Math.ceil(ctx.measureText(text).width);
+      canvas.width = tw + pad * 2;
+      canvas.height = fontPx + pad * 1.2;
+      const c2 = canvas.getContext('2d');
+      c2.font = `700 ${fontPx}px -apple-system, "Segoe UI", Roboto, sans-serif`;
+      c2.fillStyle = 'rgba(10, 15, 30, 0.4)';
+      roundRect(c2, 0, 0, canvas.width, canvas.height, 12);
+      c2.fill();
+      c2.fillStyle = color;
+      c2.textBaseline = 'middle';
+      c2.fillText(text, pad, canvas.height / 2 + 2);
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.anisotropy = 4;
+      const m = new THREE.Mesh(
+        new THREE.PlaneGeometry(canvas.width * scale, canvas.height * scale),
+        new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false })
+      );
+      m.rotation.x = -Math.PI / 2; // lie flat on the ground
+      return m;
     }
 
     function roundRect(ctx, x, y, w, h, r) {
@@ -352,6 +379,63 @@
       const T = ap.wallThickness || 0.2;
       const HT = T / 2;
 
+      // Split a wall span into solid pieces, cutting out gaps where openings sit
+      // (no wall material inside doors / windows / frames)
+      function wallPieces(axis, pos, a, b, eps = 0.05) {
+        const lo = Math.min(a, b), hi = Math.max(a, b);
+        const cuts = (ap.openings || [])
+          .filter(o => o.axis === axis && Math.abs(o.pos - pos) < eps)
+          .map(o => [Math.max(lo, Math.min(o.from, o.to)), Math.min(hi, Math.max(o.from, o.to))])
+          .filter(([f, t]) => t > f + 1e-9)
+          .sort((p, q) => p[0] - q[0]);
+        const pieces = [];
+        let cur = lo;
+        for (const [f, t] of cuts) {
+          if (f > cur + 1e-6) pieces.push([cur, f]);
+          cur = Math.max(cur, t);
+        }
+        if (hi > cur + 1e-6) pieces.push([cur, hi]);
+        return pieces;
+      }
+
+      // Split a wall segment of ANY orientation into solid pieces around openings
+      function wallSegPieces(x1, y1, x2, y2) {
+        if (Math.abs(y2 - y1) < 1e-9) return wallPieces('h', y1, x1, x2).map(([a, b]) => [[a, y1], [b, y1]]);
+        if (Math.abs(x2 - x1) < 1e-9) return wallPieces('v', x1, y1, y2).map(([a, b]) => [[x1, a], [x1, b]]);
+        // diagonal: endpoint-defined (a/b) openings lying on this segment
+        const dx = x2 - x1, dy = y2 - y1;
+        const eLen = Math.hypot(dx, dy);
+        const ux = dx / eLen, uy = dy / eLen;
+        const cuts = [];
+        for (const o of (ap.openings || [])) {
+          if (!o.a || !o.b) continue;
+          const dist = p => Math.abs((p[0] - x1) * uy - (p[1] - y1) * ux);
+          if (dist(o.a) > 0.05 || dist(o.b) > 0.05) continue;
+          let t0 = (o.a[0] - x1) * ux + (o.a[1] - y1) * uy;
+          let t1 = (o.b[0] - x1) * ux + (o.b[1] - y1) * uy;
+          if (t0 > t1) [t0, t1] = [t1, t0];
+          cuts.push([Math.max(0, t0), Math.min(eLen, t1)]);
+        }
+        cuts.sort((p, q) => p[0] - q[0]);
+        const segs = [];
+        let cur = 0;
+        for (const [f, t] of cuts) { if (f > cur + 1e-6) segs.push([cur, f]); cur = Math.max(cur, t); }
+        if (eLen > cur + 1e-6) segs.push([cur, eLen]);
+        return segs.map(([ta, tb]) => [[x1 + ux * ta, y1 + uy * ta], [x1 + ux * tb, y1 + uy * tb]]);
+      }
+
+      // One wall box between two plan points (any orientation)
+      function addWallBox(p1, p2, label) {
+        const plen = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
+        if (plen < 1e-6) return;
+        const m = new THREE.Mesh(new THREE.BoxGeometry(plen, H, T), wallMat);
+        m.position.set((p1[0] + p2[0]) / 2, H / 2, (p1[1] + p2[1]) / 2);
+        m.rotation.y = -Math.atan2(p2[1] - p1[1], p2[0] - p1[0]);
+        m.castShadow = true; m.receiveShadow = true;
+        m.userData.label = label;
+        g.add(m); hoverMeshes.push(m); pickMeshes.push(m);
+      }
+
       // Perimeter polygon support (real footprint) vs legacy bounding-box plans
       const hasPerimeter = Array.isArray(ap.perimeter) && ap.perimeter.length >= 3;
       let W = (ap.footprint && ap.footprint.width) || 10;
@@ -373,6 +457,16 @@
       const doorMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.42, roughness: 0.5, depthWrite: false });
       const stoneMat = new THREE.MeshStandardMaterial({ color: 0xd6c7a1, roughness: 0.95, metalness: 0 });
 
+      // Ground plane under the plan — host for street / courtyard / balcony / staircase marks
+      const ground = new THREE.Mesh(
+        new THREE.PlaneGeometry(W + 9, D + 9),
+        new THREE.MeshStandardMaterial({ color: 0x101827, roughness: 1 })
+      );
+      ground.rotation.x = -Math.PI / 2;
+      ground.position.set(W / 2, -0.015, D / 2);
+      ground.receiveShadow = true;
+      g.add(ground);
+
       if (hasPerimeter) {
         // Polygon floor — the actual footprint shape, with a 1 m grid texture
         const shape = new THREE.Shape();
@@ -389,19 +483,32 @@
         floor.receiveShadow = true;
         g.add(floor); pickMeshes.push(floor);
 
-        // Extruded perimeter walls — one box per edge of the polygon
+        // Extruded perimeter walls — one box per edge, split around openings
         const pts = ap.perimeter;
         for (let i = 0; i < pts.length; i++) {
           const [x1, y1] = pts[i];
           const [x2, y2] = pts[(i + 1) % pts.length];
-          const dx = x2 - x1, dz = y2 - y1;
-          const len = Math.hypot(dx, dz);
-          const m = new THREE.Mesh(new THREE.BoxGeometry(len, H, T), wallMat);
-          m.position.set((x1 + x2) / 2, H / 2, (y1 + y2) / 2);
-          m.rotation.y = -Math.atan2(dz, dx);
-          m.castShadow = true; m.receiveShadow = true;
-          m.userData.label = `Perimeter ${i + 1}: (${x1}, ${y1}) → (${x2}, ${y2}) · ${len.toFixed(2)} m`;
-          g.add(m); hoverMeshes.push(m); pickMeshes.push(m);
+          for (const [p1, p2] of wallSegPieces(x1, y1, x2, y2)) {
+            addWallBox(p1, p2, `Perimeter ${i + 1}: (${p1[0]}, ${p1[1]}) → (${p2[0]}, ${p2[1]}) · ${Math.hypot(p2[0] - p1[0], p2[1] - p1[1]).toFixed(2)} m`);
+          }
+        }
+
+        // Subtle segment-length marks on the ground, just outside each perimeter edge
+        const cxAvg = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+        const cyAvg = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+        for (let i = 0; i < pts.length; i++) {
+          const [x1, y1] = pts[i];
+          const [x2, y2] = pts[(i + 1) % pts.length];
+          const dx = x2 - x1, dy = y2 - y1;
+          const len = Math.hypot(dx, dy);
+          if (len < 0.05) continue;
+          // outward normal — the candidate pointing away from the polygon centroid
+          let nx = -dy / len, ny = dx / len;
+          const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+          if (nx * (mx - cxAvg) + ny * (my - cyAvg) < 0) { nx = -nx; ny = -ny; }
+          const f = makeFloorLabel(len.toFixed(2) + ' m', { color: '#64748b', scale: 0.008 });
+          f.position.set(mx + nx * 0.55, 0.02, my + ny * 0.55);
+          g.add(f);
         }
 
         // Top edge outline — shows the extrusion height without blocking the top view
@@ -427,69 +534,180 @@
         g.add(new THREE.LineSegments(gridGeo, new THREE.LineBasicMaterial({ color: 0x3b4a63, transparent: true, opacity: 0.55 })));
       }
 
-      // Walls — horizontal segments (x1, x2, y)
+      // Walls — horizontal segments (x1, x2, y), split around openings
       for (const [x1, x2, y, label] of (ap.horizontalWalls || [])) {
-        const m = new THREE.Mesh(new THREE.BoxGeometry(x2 - x1, H, T), wallMat);
-        m.position.set((x1 + x2) / 2, H / 2, y);
-        m.castShadow = true; m.receiveShadow = true;
-        m.userData.label = label || `Wall (h) x ${x1}→${x2} @ y ${y}`;
-        g.add(m); hoverMeshes.push(m); pickMeshes.push(m);
+        for (const [p1, p2] of wallSegPieces(x1, y, x2, y)) {
+          addWallBox(p1, p2, label || `Wall (h) x ${p1[0]}→${p2[0]} @ y ${y}`);
+        }
       }
-      // Walls — vertical segments (y1, y2, x)
+      // Walls — vertical segments (y1, y2, x), split around openings
       for (const [y1, y2, x, label] of (ap.verticalWalls || [])) {
-        const m = new THREE.Mesh(new THREE.BoxGeometry(T, H, y2 - y1), wallMat);
-        m.position.set(x, H / 2, (y1 + y2) / 2);
-        m.castShadow = true; m.receiveShadow = true;
-        m.userData.label = label || `Wall (v) y ${y1}→${y2} @ x ${x}`;
-        g.add(m); hoverMeshes.push(m); pickMeshes.push(m);
+        for (const [p1, p2] of wallSegPieces(x, y1, x, y2)) {
+          addWallBox(p1, p2, label || `Wall (v) y ${p1[1]}→${p2[1]} @ x ${x}`);
+        }
+      }
+      // Walls — diagonal segments [x1, y1, x2, y2], split around a/b openings
+      for (const [x1, y1, x2, y2, label] of (ap.diagonalWalls || [])) {
+        for (const [p1, p2] of wallSegPieces(x1, y1, x2, y2)) {
+          addWallBox(p1, p2, label || `Wall (d) (${x1}, ${y1}) → (${x2}, ${y2})`);
+        }
       }
 
-      // Openings (windows / doors / stone frames) — always at FULL wall height,
-      // unaffected by the 1/3 low-wall view
+      // Openings (windows / framed doors / stone frames) — always at FULL wall
+      // height, unaffected by the 1/3 low-wall view
       const Hbase = ap.wallHeight || 1.13;
+      const jw = 0.15, lh = 0.25, fd = T * 1.1; // frame: jamb width / lintel height / depth
       for (const o of (ap.openings || [])) {
-        const kind = o.type === 'window' ? 'win' : o.type === 'archway' ? 'arch' : 'door';
+        const kind = o.type === 'window' ? 'win' : o.type === 'archway' ? 'arch' : o.type === 'passage' ? 'open' : o.type === 'double' ? 'dbl' : 'door';
+        // Plain open passage: gap only — no door, window or frame (wall is still cut)
+        if (kind === 'open') continue;
+        // Diagonal openings: endpoints a/b lying on a slanted perimeter wall
+        if (o.a && o.b) {
+          const dx = o.b[0] - o.a[0], dy = o.b[1] - o.a[1];
+          const dlen = Math.hypot(dx, dy);
+          const ux = dx / dlen, uy = dy / dlen;
+          const midx = (o.a[0] + o.b[0]) / 2, midy = (o.a[1] + o.b[1]) / 2;
+          const rot = -Math.atan2(dy, dx);
+          const labelD = `${kind === 'win' ? 'Window' : kind === 'arch' ? 'Stone frame' : kind === 'dbl' ? 'Double doors' : 'Door'}: ${o.label || ''}`;
+          const addRot = (geo, mat, x, y, z) => {
+            const m = new THREE.Mesh(geo, mat);
+            m.position.set(x, y, z);
+            m.rotation.y = rot;
+            m.castShadow = true; m.receiveShadow = true;
+            m.userData.label = labelD;
+            g.add(m); hoverMeshes.push(m); pickMeshes.push(m);
+          };
+          // stone frame: jambs + lintel, rotated to the wall
+          addRot(new THREE.BoxGeometry(jw, Hbase, fd), stoneMat, o.a[0] + ux * jw / 2, Hbase / 2, o.a[1] + uy * jw / 2);
+          addRot(new THREE.BoxGeometry(jw, Hbase, fd), stoneMat, o.b[0] - ux * jw / 2, Hbase / 2, o.b[1] - uy * jw / 2);
+          addRot(new THREE.BoxGeometry(Math.max(0.1, dlen - 2 * jw), lh, fd), stoneMat, midx, Hbase - lh / 2, midy);
+          if (kind === 'win') {
+            // window: wall below the sill and above the frame; frame surrounds only the glass
+            const sillH = Hbase * 0.25;
+            const glassTop = Hbase - lh;
+            const ghgt = glassTop - sillH;
+            const gcy = sillH + ghgt / 2;
+            const inner = Math.max(0.1, dlen - 2 * jw);
+            const addRotWall = (x, y, z, geo) => {
+              const s = new THREE.Mesh(geo, wallMat);
+              s.position.set(x, y, z);
+              s.rotation.y = rot;
+              s.castShadow = true; s.receiveShadow = true;
+              g.add(s); pickMeshes.push(s);
+            };
+            addRotWall(midx, sillH / 2, midy, new THREE.BoxGeometry(dlen, sillH, T));
+            addRotWall(midx, glassTop + lh / 2, midy, new THREE.BoxGeometry(dlen, lh, T));
+            addRot(new THREE.BoxGeometry(jw, ghgt, fd), stoneMat, o.a[0] + ux * jw / 2, gcy, o.a[1] + uy * jw / 2);
+            addRot(new THREE.BoxGeometry(jw, ghgt, fd), stoneMat, o.b[0] - ux * jw / 2, gcy, o.b[1] - uy * jw / 2);
+            addRot(new THREE.BoxGeometry(inner, lh, fd), stoneMat, midx, glassTop + lh / 2, midy);
+            addRot(new THREE.BoxGeometry(inner, ghgt, T * 0.55), winMat, midx, gcy, midy);
+          } else {
+            // stone frame: full-height jambs + lintel (archway / door)
+            addRot(new THREE.BoxGeometry(jw, Hbase, fd), stoneMat, o.a[0] + ux * jw / 2, Hbase / 2, o.a[1] + uy * jw / 2);
+            addRot(new THREE.BoxGeometry(jw, Hbase, fd), stoneMat, o.b[0] - ux * jw / 2, Hbase / 2, o.b[1] - uy * jw / 2);
+            addRot(new THREE.BoxGeometry(Math.max(0.1, dlen - 2 * jw), lh, fd), stoneMat, midx, Hbase - lh / 2, midy);
+            if (kind === 'door') {
+              const hgt = Hbase - lh - 0.03;
+              addRot(new THREE.BoxGeometry(Math.max(0.1, dlen - 2 * jw), hgt, T * 0.55), doorMat, midx, hgt / 2, midy);
+            }
+          }
+          continue;
+        }
         const len = o.to - o.from;
         const mid = (o.from + o.to) / 2;
-        const oMat = kind === 'win' ? winMat : kind === 'arch' ? stoneMat : doorMat;
-        const addOpen = (geo, x, y, z, label) => {
-          const m = new THREE.Mesh(geo, oMat);
+        const label = `${kind === 'win' ? 'Window' : kind === 'arch' ? 'Stone frame' : kind === 'dbl' ? 'Double doors' : 'Door'}: ${o.label || ''}`;
+        const addOpen = (geo, mat, x, y, z) => {
+          const m = new THREE.Mesh(geo, mat);
           m.position.set(x, y, z);
           m.castShadow = true; m.receiveShadow = true;
           m.userData.label = label;
           g.add(m); hoverMeshes.push(m); pickMeshes.push(m);
         };
-        if (kind === 'arch') {
-          // Stone frame: two jambs + lintel, open in the middle (walk-through)
-          const jw = 0.15, lh = 0.25, d = T * 1.1;
-          const label = `Stone frame: ${o.label || ''}`;
-          if (o.axis === 'h') {
-            addOpen(new THREE.BoxGeometry(jw, Hbase, d), o.from + jw / 2, Hbase / 2, o.pos, label);
-            addOpen(new THREE.BoxGeometry(jw, Hbase, d), o.to - jw / 2, Hbase / 2, o.pos, label);
-            addOpen(new THREE.BoxGeometry(Math.max(0.1, len - 2 * jw), lh, d), mid, Hbase - lh / 2, o.pos, label);
+        // Stone frame: two jambs + lintel
+        const addFrame = (axisH) => {
+          if (axisH) {
+            addOpen(new THREE.BoxGeometry(jw, Hbase, fd), stoneMat, o.from + jw / 2, Hbase / 2, o.pos);
+            addOpen(new THREE.BoxGeometry(jw, Hbase, fd), stoneMat, o.to - jw / 2, Hbase / 2, o.pos);
+            addOpen(new THREE.BoxGeometry(Math.max(0.1, len - 2 * jw), lh, fd), stoneMat, mid, Hbase - lh / 2, o.pos);
           } else {
-            addOpen(new THREE.BoxGeometry(d, Hbase, jw), o.pos, Hbase / 2, o.from + jw / 2, label);
-            addOpen(new THREE.BoxGeometry(d, Hbase, jw), o.pos, Hbase / 2, o.to - jw / 2, label);
-            addOpen(new THREE.BoxGeometry(d, lh, Math.max(0.1, len - 2 * jw)), o.pos, Hbase - lh / 2, mid, label);
+            addOpen(new THREE.BoxGeometry(fd, Hbase, jw), stoneMat, o.pos, Hbase / 2, o.from + jw / 2);
+            addOpen(new THREE.BoxGeometry(fd, Hbase, jw), stoneMat, o.pos, Hbase / 2, o.to - jw / 2);
+            addOpen(new THREE.BoxGeometry(fd, lh, Math.max(0.1, len - 2 * jw)), stoneMat, o.pos, Hbase - lh / 2, mid);
+          }
+        };
+        if (kind === 'arch') {
+          // walk-through: frame only, open in the middle
+          addFrame(o.axis === 'h');
+        } else if (kind === 'door') {
+          // framed door: stone frame + door leaf inside it
+          addFrame(o.axis === 'h');
+          const inner = Math.max(0.1, len - 2 * jw);
+          const hgt = Hbase - lh - 0.03; // fits under the lintel
+          const cy = hgt / 2;             // leaf rests on the floor
+          if (o.axis === 'h') addOpen(new THREE.BoxGeometry(inner, hgt, T * 0.55), doorMat, mid, cy, o.pos);
+          else addOpen(new THREE.BoxGeometry(T * 0.55, hgt, inner), doorMat, o.pos, cy, mid);
+        } else if (kind === 'dbl') {
+          // double doors — both wings held open at 90°, one per side
+          addFrame(o.axis === 'h');
+          const hgt = Hbase - lh - 0.03;
+          const leafT = 0.05;
+          const half = len / 2;
+          if (o.axis === 'h') {
+            addOpen(new THREE.BoxGeometry(leafT, hgt, half), doorMat, o.from + leafT / 2, hgt / 2, o.pos + half / 2);
+            addOpen(new THREE.BoxGeometry(leafT, hgt, half), doorMat, o.to - leafT / 2, hgt / 2, o.pos - half / 2);
+          } else {
+            addOpen(new THREE.BoxGeometry(half, hgt, leafT), doorMat, o.pos + half / 2, hgt / 2, o.from + leafT / 2);
+            addOpen(new THREE.BoxGeometry(half, hgt, leafT), doorMat, o.pos - half / 2, hgt / 2, o.to - leafT / 2);
           }
         } else {
-          // window: sill at 0.25H, top flush with wall top · door: near-full height with lintel
-          const hgt = Hbase * (kind === 'win' ? 0.75 : 0.92);
-          const cy = Hbase * (kind === 'win' ? 0.625 : 0.46);
-          const label = `${kind === 'win' ? 'Window' : 'Door'}: ${o.label || ''}`;
+          // window: solid wall below the sill and above the frame; stone frame
+          // surrounds only the glass (jambs at glass height + lintel on top)
+          const sillH = Hbase * 0.25;
+          const glassTop = Hbase - lh;
+          const ghgt = glassTop - sillH;
+          const gcy = sillH + ghgt / 2;
+          const inner = Math.max(0.1, len - 2 * jw);
+          const addWallPart = (x, y, z, geo) => {
+            const s = new THREE.Mesh(geo, wallMat);
+            s.position.set(x, y, z);
+            s.castShadow = true; s.receiveShadow = true;
+            g.add(s); pickMeshes.push(s);
+          };
           if (o.axis === 'h') {
-            addOpen(new THREE.BoxGeometry(len, hgt, T * 0.55), mid, cy, o.pos, label);
+            addWallPart(mid, sillH / 2, o.pos, new THREE.BoxGeometry(len, sillH, T));
+            addWallPart(mid, glassTop + lh / 2, o.pos, new THREE.BoxGeometry(len, lh, T));
+            addOpen(new THREE.BoxGeometry(jw, ghgt, fd), stoneMat, o.from + jw / 2, gcy, o.pos);
+            addOpen(new THREE.BoxGeometry(jw, ghgt, fd), stoneMat, o.to - jw / 2, gcy, o.pos);
+            addOpen(new THREE.BoxGeometry(inner, lh, fd), stoneMat, mid, glassTop + lh / 2, o.pos);
+            addOpen(new THREE.BoxGeometry(inner, ghgt, T * 0.55), winMat, mid, gcy, o.pos);
           } else {
-            addOpen(new THREE.BoxGeometry(T * 0.55, hgt, len), o.pos, cy, mid, label);
+            addWallPart(o.pos, sillH / 2, mid, new THREE.BoxGeometry(T, sillH, len));
+            addWallPart(o.pos, glassTop + lh / 2, mid, new THREE.BoxGeometry(T, lh, len));
+            addOpen(new THREE.BoxGeometry(fd, ghgt, jw), stoneMat, o.pos, gcy, o.from + jw / 2);
+            addOpen(new THREE.BoxGeometry(fd, ghgt, jw), stoneMat, o.pos, gcy, o.to - jw / 2);
+            addOpen(new THREE.BoxGeometry(fd, lh, inner), stoneMat, o.pos, glassTop + lh / 2, mid);
+            addOpen(new THREE.BoxGeometry(T * 0.55, ghgt, inner), winMat, o.pos, gcy, mid);
           }
         }
       }
 
-      // Room labels (floating sprites)
+      // Room labels (floating sprites) + area marks on the floor
       for (const r of (ap.rooms || [])) {
         const s = makeTextSprite(r.name);
         s.position.set(r.center[0], H + 0.55, r.center[1]);
         g.add(s);
+        if (r.area != null) {
+          const f = makeFloorLabel(r.area.toFixed(1) + ' m²', { color: '#86efac' });
+          f.position.set(r.center[0], 0.02, r.center[1]);
+          g.add(f);
+        }
+      }
+
+      // Ground marks (street / courtyard / balcony / staircase)
+      for (const gl of (ap.groundLabels || [])) {
+        const f = makeFloorLabel(gl.text, { color: '#7dd3fc', scale: gl.scale || 0.011 });
+        f.position.set(gl.center[0], 0.02, gl.center[1]);
+        g.add(f);
       }
 
       // Center the plan at the origin

@@ -150,7 +150,7 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/api/apartments' && (isGet || isHead)) {
     const apartments = plans.apartments.map(a => ({
       ...a,
-      wallSegmentCount: (a.horizontalWalls?.length || 0) + (a.verticalWalls?.length || 0),
+      wallSegmentCount: (a.horizontalWalls?.length || 0) + (a.verticalWalls?.length || 0) + (a.diagonalWalls?.length || 0),
       openingCount: a.openings?.length || 0
     }));
     return sendJson(res, 200, {
