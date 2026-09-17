@@ -941,13 +941,21 @@
         const lensMat = new THREE.MeshStandardMaterial({ color: 0x475569, emissive: 0x000000 });
         const lens = new THREE.Mesh(new THREE.SphereGeometry(0.05, 16, 12), lensMat);
         lens.position.set(cx, 0.27, cz);
+        // The light the sensor sees is the corridor fixture (lightPos), not the
+        // sensor itself — the ball of light appears at the fixture when lit.
+        const lx = s.lightPos ? s.lightPos[0] : cx;
+        const ly = s.lightPos ? s.lightPos[1] : cz;
         const pl = new THREE.PointLight(0xffd27d, 0, 5, 2); // off until light is detected
-        pl.position.set(cx, 0.4, cz);
+        pl.position.set(lx, 0.4, ly);
         pl.visible = false;
+        // small fixture marker so the light position is visible even when off
+        const fixture = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.05, 20),
+          new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.6 }));
+        fixture.position.set(lx, 0.025, ly);
         // visible ball of light — shown while the corridor reports light (or in sim mode)
         const ballMat = new THREE.MeshBasicMaterial({ color: 0xffe9b3 });
         const ball = new THREE.Mesh(new THREE.SphereGeometry(0.15, 20, 14), ballMat);
-        ball.position.set(cx, 0.45, cz);
+        ball.position.set(lx, 0.45, ly);
         ball.visible = false;
         // Presence marker: pulsing ring + person figure at the sensor spot,
         // shown on the layout while the zone reports movement
@@ -961,7 +969,7 @@
         person.position.y = 0.3;
         pg.add(ring, person);
         pg.visible = false;
-        g.add(body, lens, pl, ball, pg);
+        g.add(body, lens, pl, fixture, ball, pg);
         hoverMeshes.push(body, lens);
         const fl = makeFloorLabel('SHELLY', { color: '#fbbf24', scale: 0.007 });
         fl.position.set(cx, 0.02, cz + 0.36);
