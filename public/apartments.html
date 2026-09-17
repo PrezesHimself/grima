@@ -507,6 +507,8 @@
       const doorMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.42, roughness: 0.5, depthWrite: false });
       const stoneMat = new THREE.MeshStandardMaterial({ color: 0xd6c7a1, roughness: 0.95, metalness: 0 });
       if (ghostWalls) { stoneMat.transparent = true; stoneMat.opacity = 0.35; stoneMat.depthWrite = false; }
+      const doorWoodMat = new THREE.MeshStandardMaterial({ color: 0x9c6b3c, roughness: 0.7, metalness: 0 }); // wooden door/window frames
+      if (ghostWalls) { doorWoodMat.transparent = true; doorWoodMat.opacity = 0.35; doorWoodMat.depthWrite = false; }
 
       // Ground plane under the plan — host for street / courtyard / balcony / staircase marks
       const ground = new THREE.Mesh(
@@ -696,6 +698,8 @@
       const jw = 0.15, lh = 0.25, fd = T * 1.1; // frame: jamb width / lintel height / depth
       for (const o of (ap.openings || [])) {
         const kind = o.type === 'window' ? 'win' : o.type === 'archway' ? 'arch' : o.type === 'passage' ? 'open' : o.type === 'double' ? 'dbl' : 'door';
+        // only the kitchen↔living room archway has a stone frame — everything else is wood
+        const frameMat = o.frame === 'stone' ? stoneMat : doorWoodMat;
         // Plain open passage: gap only — no door, window or frame (wall is still cut)
         if (kind === 'open') continue;
         // Diagonal openings: endpoints a/b lying on a slanted perimeter wall
@@ -714,10 +718,10 @@
             m.userData.label = labelD;
             g.add(m); hoverMeshes.push(m); pickMeshes.push(m);
           };
-          // stone frame: jambs + lintel, rotated to the wall
-          addRot(new THREE.BoxGeometry(jw, Hbase, fd), stoneMat, o.a[0] + ux * jw / 2, Hbase / 2, o.a[1] + uy * jw / 2);
-          addRot(new THREE.BoxGeometry(jw, Hbase, fd), stoneMat, o.b[0] - ux * jw / 2, Hbase / 2, o.b[1] - uy * jw / 2);
-          addRot(new THREE.BoxGeometry(Math.max(0.1, dlen - 2 * jw), lh, fd), stoneMat, midx, Hbase - lh / 2, midy);
+          // frame: jambs + lintel, rotated to the wall
+          addRot(new THREE.BoxGeometry(jw, Hbase, fd), frameMat, o.a[0] + ux * jw / 2, Hbase / 2, o.a[1] + uy * jw / 2);
+          addRot(new THREE.BoxGeometry(jw, Hbase, fd), frameMat, o.b[0] - ux * jw / 2, Hbase / 2, o.b[1] - uy * jw / 2);
+          addRot(new THREE.BoxGeometry(Math.max(0.1, dlen - 2 * jw), lh, fd), frameMat, midx, Hbase - lh / 2, midy);
           if (kind === 'win') {
             // window: wall below the sill and above the frame; frame surrounds only the glass
             const sillH = Hbase * 0.25;
@@ -734,15 +738,15 @@
             };
             addRotWall(midx, sillH / 2, midy, new THREE.BoxGeometry(dlen, sillH, T));
             addRotWall(midx, glassTop + lh / 2, midy, new THREE.BoxGeometry(dlen, lh, T));
-            addRot(new THREE.BoxGeometry(jw, ghgt, fd), stoneMat, o.a[0] + ux * jw / 2, gcy, o.a[1] + uy * jw / 2);
-            addRot(new THREE.BoxGeometry(jw, ghgt, fd), stoneMat, o.b[0] - ux * jw / 2, gcy, o.b[1] - uy * jw / 2);
-            addRot(new THREE.BoxGeometry(inner, lh, fd), stoneMat, midx, glassTop + lh / 2, midy);
+            addRot(new THREE.BoxGeometry(jw, ghgt, fd), frameMat, o.a[0] + ux * jw / 2, gcy, o.a[1] + uy * jw / 2);
+            addRot(new THREE.BoxGeometry(jw, ghgt, fd), frameMat, o.b[0] - ux * jw / 2, gcy, o.b[1] - uy * jw / 2);
+            addRot(new THREE.BoxGeometry(inner, lh, fd), frameMat, midx, glassTop + lh / 2, midy);
             addRot(new THREE.BoxGeometry(inner, ghgt, T * 0.55), winMat, midx, gcy, midy);
           } else {
-            // stone frame: full-height jambs + lintel (archway / door)
-            addRot(new THREE.BoxGeometry(jw, Hbase, fd), stoneMat, o.a[0] + ux * jw / 2, Hbase / 2, o.a[1] + uy * jw / 2);
-            addRot(new THREE.BoxGeometry(jw, Hbase, fd), stoneMat, o.b[0] - ux * jw / 2, Hbase / 2, o.b[1] - uy * jw / 2);
-            addRot(new THREE.BoxGeometry(Math.max(0.1, dlen - 2 * jw), lh, fd), stoneMat, midx, Hbase - lh / 2, midy);
+            // frame: full-height jambs + lintel (archway / door)
+            addRot(new THREE.BoxGeometry(jw, Hbase, fd), frameMat, o.a[0] + ux * jw / 2, Hbase / 2, o.a[1] + uy * jw / 2);
+            addRot(new THREE.BoxGeometry(jw, Hbase, fd), frameMat, o.b[0] - ux * jw / 2, Hbase / 2, o.b[1] - uy * jw / 2);
+            addRot(new THREE.BoxGeometry(Math.max(0.1, dlen - 2 * jw), lh, fd), frameMat, midx, Hbase - lh / 2, midy);
             if (kind === 'door') {
               const hgt = Hbase - lh - 0.03;
               // lightSource doors (balcony entrance) glow like windows — daylight comes in through them
@@ -764,13 +768,13 @@
         // Stone frame: two jambs + lintel
         const addFrame = (axisH) => {
           if (axisH) {
-            addOpen(new THREE.BoxGeometry(jw, Hbase, fd), stoneMat, o.from + jw / 2, Hbase / 2, o.pos);
-            addOpen(new THREE.BoxGeometry(jw, Hbase, fd), stoneMat, o.to - jw / 2, Hbase / 2, o.pos);
-            addOpen(new THREE.BoxGeometry(Math.max(0.1, len - 2 * jw), lh, fd), stoneMat, mid, Hbase - lh / 2, o.pos);
+            addOpen(new THREE.BoxGeometry(jw, Hbase, fd), frameMat, o.from + jw / 2, Hbase / 2, o.pos);
+            addOpen(new THREE.BoxGeometry(jw, Hbase, fd), frameMat, o.to - jw / 2, Hbase / 2, o.pos);
+            addOpen(new THREE.BoxGeometry(Math.max(0.1, len - 2 * jw), lh, fd), frameMat, mid, Hbase - lh / 2, o.pos);
           } else {
-            addOpen(new THREE.BoxGeometry(fd, Hbase, jw), stoneMat, o.pos, Hbase / 2, o.from + jw / 2);
-            addOpen(new THREE.BoxGeometry(fd, Hbase, jw), stoneMat, o.pos, Hbase / 2, o.to - jw / 2);
-            addOpen(new THREE.BoxGeometry(fd, lh, Math.max(0.1, len - 2 * jw)), stoneMat, o.pos, Hbase - lh / 2, mid);
+            addOpen(new THREE.BoxGeometry(fd, Hbase, jw), frameMat, o.pos, Hbase / 2, o.from + jw / 2);
+            addOpen(new THREE.BoxGeometry(fd, Hbase, jw), frameMat, o.pos, Hbase / 2, o.to - jw / 2);
+            addOpen(new THREE.BoxGeometry(fd, lh, Math.max(0.1, len - 2 * jw)), frameMat, o.pos, Hbase - lh / 2, mid);
           }
         };
         if (kind === 'arch') {
@@ -797,7 +801,7 @@
             addOpen(new THREE.BoxGeometry(T * 0.55, hgt, half), doorMat, o.pos, hgt / 2, o.to - half / 2);
           }
         } else {
-          // window: solid wall below the sill and above the frame; stone frame
+          // window: solid wall below the sill and above the frame; frame
           // surrounds only the glass (jambs at glass height + lintel on top)
           const sillH = Hbase * 0.25;
           const glassTop = Hbase - lh;
@@ -813,16 +817,16 @@
           if (o.axis === 'h') {
             addWallPart(mid, sillH / 2, o.pos, new THREE.BoxGeometry(len, sillH, T));
             addWallPart(mid, glassTop + lh / 2, o.pos, new THREE.BoxGeometry(len, lh, T));
-            addOpen(new THREE.BoxGeometry(jw, ghgt, fd), stoneMat, o.from + jw / 2, gcy, o.pos);
-            addOpen(new THREE.BoxGeometry(jw, ghgt, fd), stoneMat, o.to - jw / 2, gcy, o.pos);
-            addOpen(new THREE.BoxGeometry(inner, lh, fd), stoneMat, mid, glassTop + lh / 2, o.pos);
+            addOpen(new THREE.BoxGeometry(jw, ghgt, fd), frameMat, o.from + jw / 2, gcy, o.pos);
+            addOpen(new THREE.BoxGeometry(jw, ghgt, fd), frameMat, o.to - jw / 2, gcy, o.pos);
+            addOpen(new THREE.BoxGeometry(inner, lh, fd), frameMat, mid, glassTop + lh / 2, o.pos);
             addOpen(new THREE.BoxGeometry(inner, ghgt, T * 0.55), winMat, mid, gcy, o.pos);
           } else {
             addWallPart(o.pos, sillH / 2, mid, new THREE.BoxGeometry(T, sillH, len));
             addWallPart(o.pos, glassTop + lh / 2, mid, new THREE.BoxGeometry(T, lh, len));
-            addOpen(new THREE.BoxGeometry(fd, ghgt, jw), stoneMat, o.pos, gcy, o.from + jw / 2);
-            addOpen(new THREE.BoxGeometry(fd, ghgt, jw), stoneMat, o.pos, gcy, o.to - jw / 2);
-            addOpen(new THREE.BoxGeometry(fd, lh, inner), stoneMat, o.pos, glassTop + lh / 2, mid);
+            addOpen(new THREE.BoxGeometry(fd, ghgt, jw), frameMat, o.pos, gcy, o.from + jw / 2);
+            addOpen(new THREE.BoxGeometry(fd, ghgt, jw), frameMat, o.pos, gcy, o.to - jw / 2);
+            addOpen(new THREE.BoxGeometry(fd, lh, inner), frameMat, o.pos, glassTop + lh / 2, mid);
             addOpen(new THREE.BoxGeometry(T * 0.55, ghgt, inner), winMat, o.pos, gcy, mid);
           }
         }

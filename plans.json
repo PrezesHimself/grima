@@ -35,7 +35,7 @@
         { "type": "door", "axis": "v", "from": 6.08, "to": 7.08, "pos": 2.87, "label": "main entrance → corridor" },
         { "type": "door", "axis": "diag", "a": [4.96, 5.78], "b": [5.66, 5.08], "label": "bathroom door" },
         { "type": "double", "axis": "h", "from": 5.01, "to": 6.61, "pos": 7.38, "label": "living room ↔ corridor (closed)" },
-        { "type": "archway", "axis": "v", "from": 8.0, "to": 9.0, "pos": 3.13, "label": "kitchen ↔ living room (no door)" },
+        { "type": "archway", "axis": "v", "from": 8.0, "to": 9.0, "pos": 3.13, "frame": "stone", "label": "kitchen ↔ living room (no door)" },
         { "type": "door", "axis": "v", "from": 10.25, "to": 11.25, "pos": 3.13, "label": "bedroom ↔ living room" },
         { "type": "passage", "axis": "h", "from": 3.41, "to": 5.41, "pos": 2.51, "label": "bedroom 2 — open passage" },
         { "type": "door", "axis": "h", "from": 5.79, "to": 6.69, "pos": 2.51, "label": "bedroom 2 ↔ corridor" },
